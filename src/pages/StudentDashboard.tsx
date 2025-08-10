@@ -1,0 +1,273 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, BookOpen, FileText, Users } from 'lucide-react';
+import SubjectCard from '../components/SubjectCard';
+import FileCard from '../components/FileCard';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { 
+  getSubjectsByClass, 
+  getFilesBySubjectAndCategory, 
+  recordDownload 
+} from '../lib/api';
+import type { Student, Subject, FileRecord } from '../lib/supabase';
+
+type DashboardView = 'main' | 'sor' | 'soch' | 'subject-files';
+
+interface StudentDashboardProps {
+  student: Student;
+  className: string;
+  onLogout: () => void;
+}
+
+export default function StudentDashboard({ student, className, onLogout }: StudentDashboardProps) {
+  const [view, setView] = useState<DashboardView>('main');
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [files, setFiles] = useState<FileRecord[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
+  const [currentCategory, setCurrentCategory] = useState<'SOR' | 'SOCH'>('SOR');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (view === 'sor' || view === 'soch') {
+      loadSubjects();
+    }
+  }, [view, student.class_id]);
+
+  const loadSubjects = async () => {
+    try {
+      setLoading(true);
+      const subjectData = await getSubjectsByClass(student.class_id);
+      setSubjects(subjectData);
+    } catch (err) {
+      setError('Ошибка загрузки предметов');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSubjectFiles = async (subject: Subject, category: 'SOR' | 'SOCH') => {
+    try {
+      setLoading(true);
+      const fileData = await getFilesBySubjectAndCategory(subject.id, category);
+      setFiles(fileData);
+      setSelectedSubject(subject);
+      setCurrentCategory(category);
+      setView('subject-files');
+    } catch (err) {
+      setError('Ошибка загрузки файлов');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownload = async (file: FileRecord) => {
+    try {
+      // Записываем скачивание в статистику
+      await recordDownload(student.id, file.id);
+      
+      // Открываем файл в новой вкладке
+      window.open(file.file_url, '_blank');
+    } catch (err) {
+      setError('Ошибка при скачивании файла');
+    }
+  };
+
+  const handleBack = () => {
+    if (view === 'subject-files') {
+      setView(currentCategory.toLowerCase() as 'sor' | 'soch');
+      setSelectedSubject(null);
+      setFiles([]);
+    } else if (view === 'sor' || view === 'soch') {
+      setView('main');
+      setSubjects([]);
+    }
+  };
+
+  const getStudentName = () => {
+    const nameParts = student.name.split(' ');
+    if (nameParts.length >= 2) {
+      return `${nameParts[0]} ${nameParts[1]}`;
+    }
+    return student.name;
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-8"
+        >
+          {view === 'main' && (
+            <>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">
+                Здравствуйте, {getStudentName()}!
+              </h1>
+              <p className="text-xl text-gray-600">Класс {className}</p>
+            </>
+          )}
+          {view === 'sor' && (
+            <>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">СОР</h1>
+              <p className="text-xl text-gray-600">Суммативное оценивание за раздел</p>
+            </>
+          )}
+          {view === 'soch' && (
+            <>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">СОЧ</h1>
+              <p className="text-xl text-gray-600">Суммативное оценивание за четверть</p>
+            </>
+          )}
+          {view === 'subject-files' && selectedSubject && (
+            <>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">
+                {selectedSubject.name} - {currentCategory}
+              </h1>
+              <p className="text-xl text-gray-600">Материалы для изучения</p>
+            </>
+          )}
+        </motion.div>
+
+        {/* Back Button */}
+        {view !== 'main' && (
+          <motion.button
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            onClick={handleBack}
+            className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 mb-6 font-medium"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Назад</span>
+          </motion.button>
+        )}
+
+        {/* Logout Button */}
+        <div className="absolute top-4 right-4">
+          <button
+            onClick={onLogout}
+            className="text-gray-600 hover:text-gray-800 font-medium"
+          >
+            Выйти
+          </button>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6"
+          >
+            {error}
+            <button
+              onClick={() => setError(null)}
+              className="ml-2 text-red-500 hover:text-red-700"
+            >
+              ✕
+            </button>
+          </motion.div>
+        )}
+
+        {/* Loading */}
+        {loading && <LoadingSpinner />}
+
+        {/* Main Dashboard */}
+        <AnimatePresence mode="wait">
+          {view === 'main' && !loading && (
+            <motion.div
+              key="main"
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -100 }}
+              transition={{ duration: 0.3 }}
+              className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto"
+            >
+              <motion.div
+                whileHover={{ scale: 1.02, y: -5 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setView('sor')}
+                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
+              >
+                <div className="text-center">
+                  <div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <BookOpen className="w-10 h-10 text-green-600" />
+                  </div>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">СОР</h2>
+                  <p className="text-gray-600">Суммативное оценивание за раздел</p>
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.02, y: -5 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setView('soch')}
+                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
+              >
+                <div className="text-center">
+                  <div className="bg-purple-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FileText className="w-10 h-10 text-purple-600" />
+                  </div>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">СОЧ</h2>
+                  <p className="text-gray-600">Суммативное оценивание за четверть</p>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* Subjects List */}
+          {(view === 'sor' || view === 'soch') && !loading && (
+            <motion.div
+              key="subjects"
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -100 }}
+              transition={{ duration: 0.3 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            >
+              {subjects.map((subject, index) => (
+                <SubjectCard
+                  key={subject.id}
+                  subject={subject}
+                  onClick={() => loadSubjectFiles(subject, view.toUpperCase() as 'SOR' | 'SOCH')}
+                  index={index}
+                />
+              ))}
+            </motion.div>
+          )}
+
+          {/* Files List */}
+          {view === 'subject-files' && !loading && (
+            <motion.div
+              key="files"
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -100 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-4"
+            >
+              {files.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-medium text-gray-600 mb-2">Файлы не найдены</h3>
+                  <p className="text-gray-500">Материалы для этого предмета пока не загружены</p>
+                </div>
+              ) : (
+                files.map((file, index) => (
+                  <FileCard
+                    key={file.id}
+                    file={file}
+                    onDownload={() => handleDownload(file)}
+                    index={index}
+                  />
+                ))
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
