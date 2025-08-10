@@ -40,7 +40,19 @@ export default function HomePage() {
     try {
       setLoading(true);
       const classData = await getClasses();
-      setClasses(classData);
+
+      // Сортировка: сначала по номеру (от большего к меньшему), затем по букве
+      const sorted = [...classData].sort((a, b) => {
+        const gradeA = parseInt(a.name);
+        const gradeB = parseInt(b.name);
+
+        if (gradeA !== gradeB) {
+          return gradeB - gradeA;
+        }
+        return a.name.localeCompare(b.name, 'ru');
+      });
+
+      setClasses(sorted);
     } catch (err) {
       setError('Ошибка загрузки классов');
     } finally {
@@ -173,7 +185,6 @@ export default function HomePage() {
     );
   }
 
-  // Show student dashboard if authenticated
   if (view === 'dashboard' && authenticatedStudent && selectedClass) {
     return (
       <StudentDashboard
@@ -201,7 +212,6 @@ export default function HomePage() {
           </p>
         </motion.div>
 
-        {/* Back Button */}
         {view === 'students' && (
           <motion.button
             initial={{ opacity: 0, x: -20 }}
@@ -214,7 +224,6 @@ export default function HomePage() {
           </motion.button>
         )}
 
-        {/* Error Message */}
         {error && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -231,7 +240,6 @@ export default function HomePage() {
           </motion.div>
         )}
 
-        {/* Classes View */}
         {view === 'classes' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
             {classes.map((classItem, index) => (
@@ -245,7 +253,6 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Students View */}
         {view === 'students' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {students.map((student, index) => (
