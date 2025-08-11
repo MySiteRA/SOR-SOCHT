@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import AdminPage from './pages/AdminPage';
 import Modal from './components/Modal';
 import { validateAdminCredentials } from './lib/api';
 import { Lock } from 'lucide-react';
 
-function App() {
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+function AppContent() {
+  const navigate = useNavigate();
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
+    return localStorage.getItem('adminLoggedIn') === 'true';
+  });
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -15,14 +18,18 @@ function App() {
 
   const handleAdminLoginSuccess = () => {
     setIsAdminLoggedIn(true);
+    localStorage.setItem('adminLoggedIn', 'true');
     setShowAdminModal(false);
     setAdminUsername('');
     setAdminPassword('');
     setAdminError(null);
+    navigate('/admin');
   };
 
   const handleAdminLogout = () => {
     setIsAdminLoggedIn(false);
+    localStorage.removeItem('adminLoggedIn');
+    navigate('/');
   };
 
   const handleAdminSubmit = (e: React.FormEvent) => {
@@ -44,29 +51,27 @@ function App() {
 
   return (
     <>
-      <Router>
-        <Routes>
-          <Route 
-            path="/" 
-            element={
-              <HomePage 
-                onShowAdminModal={() => setShowAdminModal(true)} 
-              />
-            } 
-          />
-          <Route 
-            path="/admin" 
-            element={
-              isAdminLoggedIn ? (
-                <AdminPage onLogout={handleAdminLogout} />
-              ) : (
-                <Navigate to="/" replace />
-              )
-            } 
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
+      <Routes>
+        <Route 
+          path="/" 
+          element={
+            <HomePage 
+              onShowAdminModal={() => setShowAdminModal(true)} 
+            />
+          } 
+        />
+        <Route 
+          path="/admin" 
+          element={
+            isAdminLoggedIn ? (
+              <AdminPage onLogout={handleAdminLogout} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          } 
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
 
       {/* Admin Login Modal */}
       <Modal
@@ -125,6 +130,14 @@ function App() {
         </div>
       </Modal>
     </>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
+    </Router>
   );
 }
 

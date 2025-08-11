@@ -24,39 +24,6 @@ interface AdminPageProps {
 }
 
 export default function AdminPage({ onLogout }: AdminPageProps) {
-  // ====== Авторизация ======
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [login, setLogin] = useState('');
-  const [password, setPassword] = useState('');
-
-  const validAccounts = [
-    { user: 'admin', pass: 'пароль1' },
-    { user: 'admin1', pass: 'пароль2' }
-  ];
-
-  useEffect(() => {
-    const savedAuth = localStorage.getItem('admin_auth');
-    if (savedAuth === 'true') {
-      setIsAuthenticated(true);
-    }
-  }, []);
-
-  const handleLogin = () => {
-    const match = validAccounts.find(acc => acc.user === login && acc.pass === password);
-    if (match) {
-      setIsAuthenticated(true);
-      localStorage.setItem('admin_auth', 'true');
-    } else {
-      alert('Неверный логин или пароль');
-    }
-  };
-
-  const handleLogout = () => {
-    if (onLogout) {
-      onLogout();
-    }
-  };
-
   // ====== Состояния админки ======
   const [view, setView] = useState<AdminView>('classes');
   const [classes, setClasses] = useState<Class[]>([]);
@@ -89,10 +56,8 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
 
   // ====== Логика загрузки ======
   useEffect(() => {
-    if (isAuthenticated) {
-      loadClasses();
-    }
-  }, [isAuthenticated]);
+    loadClasses();
+  }, []);
 
   const loadClasses = async () => {
     try {
@@ -312,36 +277,6 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
     });
 
   // ====== Рендер ======
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-sm">
-          <h1 className="text-2xl font-bold mb-6 text-center">Вход в админку</h1>
-          <input
-            type="text"
-            placeholder="Логин"
-            value={login}
-            onChange={(e) => setLogin(e.target.value)}
-            className="w-full mb-4 p-2 border rounded"
-          />
-          <input
-            type="password"
-            placeholder="Пароль"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full mb-6 p-2 border rounded"
-          />
-          <button
-            onClick={handleLogin}
-            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
-          >
-            Войти
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>;
   }
@@ -352,7 +287,7 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Админ-панель</h1>
           <button 
-            onClick={handleLogout} 
+            onClick={onLogout} 
             className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
           >
             Выйти

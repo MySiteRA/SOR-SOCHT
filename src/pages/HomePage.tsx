@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Shield } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import ClassCard from '../components/ClassCard';
 import StudentCard from '../components/StudentCard';
+import Header from '../components/Header';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import StudentDashboard from './StudentDashboard';
@@ -198,26 +199,16 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
           className="text-center mb-8"
         >
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Тестовая система
+            Лучший сайт для Сор и Соч
           </h1>
           <p className="text-xl text-gray-600">
             {view === 'classes' ? 'Выберите класс' : `Выберите ученика из ${selectedClass?.name}`}
           </p>
         </motion.div>
 
-        {/* Admin Login Button */}
+        {/* Header with buttons */}
         {view === 'classes' && (
-          <div className="absolute top-4 right-4">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onShowAdminModal}
-              className="flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 shadow-lg"
-            >
-              <Shield className="w-4 h-4" />
-              <span>Вход для администратора</span>
-            </motion.button>
-          </div>
+          <Header onShowAdminModal={onShowAdminModal} />
         )}
 
         {/* Back Button */}

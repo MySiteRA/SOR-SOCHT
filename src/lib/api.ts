@@ -4,10 +4,34 @@ import type { Class, Student, Key, Subject, FileRecord, Download, Material } fro
 
 // ==================== Классы ====================
 export async function getClasses(): Promise<Class[]> {
-  const { data, error } = await supabase.from('classes').select('*').order('name');
+  const allowedClasses = [
+    '11-А', '11-Б', '11-В', '11-Д', '11-Е', '11-Ё',
+    '10-А', '10-Б', '10-В', '10-Г', '10-Д', '10-Е',
+    '9-А', '9-А УТ', '9-Б', '9-В', '9-Г', '9-Д', '9-Е', '9-Ё',
+    '8-А', '8-Б', '8-В', '8-Г', '8-Д', '8-Е',
+    '7-А', '7-Б', '7-В', '7-Г', '7-Д', '7-Е',
+    '6-А', '6-Б', '6-В', '6-Г',
+    '5-А', '5-Б', '5-В',
+    '4-А', '4-Б', '4-В', '4-Г', '4-Д', '4-Е',
+    '3-А', '3-Б', '3-В', '3-ВUT', '3-Г', '3-Д',
+    '2-А', '2-Б', '2-В', '2-Г', '2-Д', '2-Е'
+  ];
+
+  const { data, error } = await supabase
+    .from('classes')
+    .select('*')
+    .in('name', allowedClasses);
+
   if (error) throw error;
-  return data || [];
+
+  // Сортировка по нашему порядку
+  const orderedData = allowedClasses
+    .map(name => data.find(cls => cls.name === name))
+    .filter((cls): cls is Class => Boolean(cls));
+
+  return orderedData;
 }
+
 
 // ==================== Ученики ====================
 export async function getStudentsByClass(classId: string): Promise<Student[]> {
