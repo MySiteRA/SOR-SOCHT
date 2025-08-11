@@ -7,7 +7,14 @@ import Header from '../components/Header';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import StudentDashboard from './StudentDashboard';
-import { getClasses, getStudentsByClass, validateKey, validatePassword, createPassword, getstudent } from '../lib/api';
+import { 
+  getClasses, 
+  getStudentsByClass, 
+  validateKey, 
+  validatePassword, 
+  createPassword, 
+  getStudent // ✅ добавил импорт
+} from '../lib/api';
 import type { Class, Student } from '../lib/supabase';
 
 type View = 'classes' | 'students' | 'dashboard' | 'admin-login';
@@ -26,12 +33,12 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Состояния модальных окон
+  // Модалки
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showCreatePasswordModal, setShowCreatePasswordModal] = useState(false);
-  
-  // Состояния полей ввода
+
+  // Поля ввода
   const [keyInput, setKeyInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -46,7 +53,7 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
       setLoading(true);
       const classData = await getClasses();
       setClasses(classData);
-    } catch (err) {
+    } catch {
       setError('Ошибка загрузки классов');
     } finally {
       setLoading(false);
@@ -60,7 +67,7 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
       setStudents(studentData);
       setSelectedClass(classItem);
       setView('students');
-    } catch (err) {
+    } catch {
       setError('Ошибка загрузки учеников');
     } finally {
       setLoading(false);
@@ -69,7 +76,7 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
 
   const handleStudentClick = (student: Student) => {
     setSelectedStudent(student);
-    
+
     if (student.password_hash) {
       setShowPasswordModal(true);
     } else {
@@ -82,7 +89,7 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
 
     try {
       const result = await validateKey(keyInput.trim(), selectedStudent.id);
-      
+
       if (result.valid && result.student) {
         setShowKeyModal(false);
         setKeyInput('');
@@ -90,7 +97,7 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
       } else {
         setError('Неверный ключ или ключ не принадлежит этому ученику');
       }
-    } catch (err) {
+    } catch {
       setError('Ошибка проверки ключа');
     }
   };
@@ -100,7 +107,7 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
 
     try {
       const result = await validatePassword(selectedStudent.id, passwordInput.trim());
-      
+
       if (result.valid && result.student) {
         setAuthenticatedStudent(result.student);
         setView('dashboard');
@@ -111,48 +118,47 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
         setError('Неверный пароль');
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Ошибка проверки пароля';
-      setError(errorMessage);
+      setError(err instanceof Error ? err.message : 'Ошибка проверки пароля');
     }
   };
 
- const handleCreatePassword = async () => {
-  if (!newPassword.trim() || !confirmPassword.trim() || !selectedStudent) return;
+  const handleCreatePassword = async () => {
+    if (!newPassword.trim() || !confirmPassword.trim() || !selectedStudent) return;
 
-  if (newPassword !== confirmPassword) {
-    setError('Пароли не совпадают');
-    return;
-  }
-
-  if (newPassword.length < 4) {
-    setError('Пароль должен содержать минимум 4 символа');
-    return;
-  }
-
-  try {
-    await createPassword(selectedStudent.id, newPassword);
-
-    // Ждём, чтобы Supabase точно сохранил
-    await new Promise(res => setTimeout(res, 500));
-
-    // Берём свежие данные студента
-    const updatedStudent = await getStudent(selectedStudent.id);
-    if (!updatedStudent) {
-      setError('Ошибка получения данных ученика');
+    if (newPassword !== confirmPassword) {
+      setError('Пароли не совпадают');
       return;
     }
 
-    setAuthenticatedStudent(updatedStudent);
-    setView('dashboard'); // Сразу переходим в меню ученика
-    setShowCreatePasswordModal(false);
-    setNewPassword('');
-    setConfirmPassword('');
-    setError(null);
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Ошибка создания пароля';
-    setError(errorMessage);
-  }
-};
+    if (newPassword.length < 4) {
+      setError('Пароль должен содержать минимум 4 символа');
+      return;
+    }
+
+    try {
+      await createPassword(selectedStudent.id, newPassword);
+
+      // Ждём, чтобы Supabase точно сохранил изменения
+      await new Promise(res => setTimeout(res, 500));
+
+      // Берём свежие данные студента
+      const updatedStudent = await getStudent(selectedStudent.id);
+      if (!updatedStudent) {
+        setError('Ошибка получения данных ученика');
+        return;
+      }
+
+      // Сохраняем как авторизованного и переходим в меню
+      setAuthenticatedStudent(updatedStudent);
+      setView('dashboard');
+      setShowCreatePasswordModal(false);
+      setNewPassword('');
+      setConfirmPassword('');
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка создания пароля');
+    }
+  };
 
   const handleBack = () => {
     if (view === 'dashboard') {
@@ -197,7 +203,6 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
     );
   }
 
-  // Show student dashboard if authenticated
   if (view === 'dashboard' && authenticatedStudent && selectedClass) {
     return (
       <StudentDashboard
@@ -211,7 +216,8 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
+
+        {/* Заголовок */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -225,12 +231,8 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
           </p>
         </motion.div>
 
-        {/* Header with buttons */}
-        {view === 'classes' && (
-          <Header onShowAdminModal={onShowAdminModal} />
-        )}
+        {view === 'classes' && <Header onShowAdminModal={onShowAdminModal} />}
 
-        {/* Back Button */}
         {view === 'students' && (
           <motion.button
             initial={{ opacity: 0, x: -20 }}
@@ -243,7 +245,6 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
           </motion.button>
         )}
 
-        {/* Error Message */}
         {error && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -260,7 +261,6 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
           </motion.div>
         )}
 
-        {/* Classes View */}
         {view === 'classes' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
             {classes.map((classItem, index) => (
@@ -274,7 +274,6 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
           </div>
         )}
 
-        {/* Students View */}
         {view === 'students' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {students.map((student, index) => (
@@ -288,12 +287,8 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
           </div>
         )}
 
-        {/* Key Modal */}
-        <Modal
-          isOpen={showKeyModal}
-          onClose={closeAllModals}
-          title="Введите ключ"
-        >
+        {/* Модалка ключа */}
+        <Modal isOpen={showKeyModal} onClose={closeAllModals} title="Введите ключ">
           <div className="space-y-4">
             <p className="text-gray-600">
               Введите ключ доступа для ученика <strong>{selectedStudent?.name}</strong>
@@ -316,12 +311,8 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
           </div>
         </Modal>
 
-        {/* Password Modal */}
-        <Modal
-          isOpen={showPasswordModal}
-          onClose={closeAllModals}
-          title="Введите пароль"
-        >
+        {/* Модалка пароля */}
+        <Modal isOpen={showPasswordModal} onClose={closeAllModals} title="Введите пароль">
           <div className="space-y-4">
             <p className="text-gray-600">
               Введите пароль для ученика <strong>{selectedStudent?.name}</strong>
@@ -344,15 +335,11 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
           </div>
         </Modal>
 
-        {/* Create Password Modal */}
-        <Modal
-          isOpen={showCreatePasswordModal}
-          onClose={closeAllModals}
-          title="Создание пароля"
-        >
+        {/* Модалка создания пароля */}
+        <Modal isOpen={showCreatePasswordModal} onClose={closeAllModals} title="Создание пароля">
           <div className="space-y-4">
             <p className="text-gray-600">
-              Создайте пароль для ученика <strong>{selectedStudent?.name}</strong> для дальнейшего входа в систему
+              Создайте пароль для ученика <strong>{selectedStudent?.name}</strong>
             </p>
             <input
               type="password"
