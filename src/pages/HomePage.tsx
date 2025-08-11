@@ -205,7 +205,7 @@ export default function HomePage() {
           className="text-center mb-8"
         >
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Тестовая система
+            Лучший сайт ответов для сор и соч
           </h1>
           <p className="text-xl text-gray-600">
             {view === 'classes' ? 'Выберите класс' : `Выберите ученика из ${selectedClass?.name}`}
