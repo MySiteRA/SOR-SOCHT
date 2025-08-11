@@ -7,7 +7,7 @@ import Header from '../components/Header';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import StudentDashboard from './StudentDashboard';
-import { getClasses, getStudentsByClass, validateKey, validatePassword, createPassword } from '../lib/api';
+import { getClasses, getStudentsByClass, validateKey, validatePassword, createPassword, getstudent } from '../lib/api';
 import type { Class, Student } from '../lib/supabase';
 
 type View = 'classes' | 'students' | 'dashboard' | 'admin-login';
