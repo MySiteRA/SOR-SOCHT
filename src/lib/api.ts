@@ -181,6 +181,23 @@ export async function createMaterial(subjectId: string, title: string, type: 'SO
   return data;
 }
 
+export async function deleteMaterial(id: string): Promise<void> {
+  const { error } = await supabase.from('materials').delete().eq('id', id);
+  if (error) throw error;
+  await logAction('MATERIAL_DELETED', `Material ${id} deleted`);
+}
+
+export async function updateMaterial(id: string, title: string, contentType: 'text' | 'image' | 'file' | 'link', contentValue: string): Promise<Material> {
+  const { data, error } = await supabase.from('materials').update({
+    title,
+    content_type: contentType,
+    content_value: contentValue
+  }).eq('id', id).select(`*, subject:subjects(*)`).single();
+  if (error) throw error;
+  await logAction('MATERIAL_UPDATED', `Material ${id} updated`);
+  return data;
+}
+
 // ==================== Файлы ====================
 export async function getFilesByClassAndCategory(classId: string, category: 'SOR' | 'SOCH'): Promise<FileRecord[]> {
   const { data, error } = await supabase.from('files').select(`*, subject:subjects(*)`).eq('class_id', classId).eq('category', category).order('uploaded_at', { ascending: false });

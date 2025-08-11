@@ -1,70 +1,75 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Key, Edit, Trash2, Copy, Plus, Calendar, Upload, FileText
+  ArrowLeft, Key, Edit, Trash2, Copy, Plus, Calendar, Upload, FileText,
+  Users, BookOpen, Home, LogOut, X, Download, ExternalLink, Image
 } from 'lucide-react';
-import ClassCard from '../components/ClassCard';
-import StudentCard from '../components/StudentCard';
-import SubjectCard from '../components/SubjectCard';
-import FileCard from '../components/FileCard';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import {
   getClasses, getStudentsByClass, getStudent, getStudentKeys,
-  getSubjectsByClass, getFilesByClassAndCategory, generateKey,
+  getSubjects, getMaterialsByType, generateKey,
   revokeKey, updateStudentUrl, updateKeyExpiration,
-  uploadFile, deleteFile, createSubject
+  createMaterial, deleteMaterial, resetStudentPassword
 } from '../lib/api';
-import type { Class, Student, Key as KeyType, Subject, FileRecord } from '../lib/supabase';
+import type { Class, Student, Key as KeyType, Subject, Material } from '../lib/supabase';
 
-type AdminView = 'classes' | 'students' | 'student-profile' | 'class-files' | 'subject-files';
+type AdminView = 'main' | 'classes' | 'students' | 'student-profile' | 'sor' | 'soch' | 'materials';
+type ContentType = 'text' | 'image' | 'file' | 'link';
 
 interface AdminPageProps {
   onLogout: () => void;
 }
 
 export default function AdminPage({ onLogout }: AdminPageProps) {
-  // ====== Состояния админки ======
-  const [view, setView] = useState<AdminView>('classes');
+  // ====== Основные состояния ======
+  const [view, setView] = useState<AdminView>('main');
   const [classes, setClasses] = useState<Class[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [files, setFiles] = useState<FileRecord[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
+  const [currentSection, setCurrentSection] = useState<'SOR' | 'SOCH'>('SOR');
   const [studentKeys, setStudentKeys] = useState<KeyType[]>([]);
-  const [currentCategory, setCurrentCategory] = useState<'SOR' | 'SOCH'>('SOR');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  // Модалки
+  // ====== Модальные окна ======
   const [showGenerateKeyModal, setShowGenerateKeyModal] = useState(false);
   const [showKeyResultModal, setShowKeyResultModal] = useState(false);
   const [showEditUrlModal, setShowEditUrlModal] = useState(false);
   const [showExpirationModal, setShowExpirationModal] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showCreateSubjectModal, setShowCreateSubjectModal] = useState(false);
+  const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
 
-  // Формы
+  // ====== Формы ======
   const [generatedKey, setGeneratedKey] = useState('');
   const [editingUrl, setEditingUrl] = useState('');
   const [keyExpiration, setKeyExpiration] = useState('');
   const [selectedKey, setSelectedKey] = useState<KeyType | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [newSubjectName, setNewSubjectName] = useState('');
+  const [selectedImage, setSelectedImage] = useState('');
+  
+  // Форма материала
+  const [materialTitle, setMaterialTitle] = useState('');
+  const [materialContentType, setMaterialContentType] = useState<ContentType>('text');
+  const [materialContent, setMaterialContent] = useState('');
 
-  // ====== Логика загрузки ======
+  // ====== Загрузка данных ======
   useEffect(() => {
-    loadClasses();
-  }, []);
+    if (view === 'classes' || view === 'sor' || view === 'soch' || view === 'students') {
+      loadClasses();
+    }
+  }, [view]);
 
   const loadClasses = async () => {
     try {
       setLoading(true);
       const classData = await getClasses();
       setClasses(classData);
-    } catch {
+    } catch (err) {
       setError('Ошибка загрузки классов');
     } finally {
       setLoading(false);
@@ -77,8 +82,12 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
       const studentData = await getStudentsByClass(classItem.id);
       setStudents(studentData);
       setSelectedClass(classItem);
-      setView('students');
-    } catch {
+      if (view === 'students') {
+        // Остаемся в разделе студентов
+      } else {
+        setView('student-profile');
+      }
+    } catch (err) {
       setError('Ошибка загрузки учеников');
     } finally {
       setLoading(false);
@@ -98,48 +107,51 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
         setEditingUrl(studentData.url || '');
         setView('student-profile');
       }
-    } catch {
+    } catch (err) {
       setError('Ошибка загрузки профиля ученика');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadClassFiles = async (classItem: Class, category: 'SOR' | 'SOCH') => {
+  const loadSubjects = async (classItem: Class) => {
     try {
       setLoading(true);
-      const [subjectData, fileData] = await Promise.all([
-        getSubjectsByClass(classItem.id),
-        getFilesByClassAndCategory(classItem.id, category)
-      ]);
+      const subjectData = await getSubjects();
       setSubjects(subjectData);
-      setFiles(fileData);
       setSelectedClass(classItem);
-      setCurrentCategory(category);
-      setView('class-files');
-    } catch {
-      setError('Ошибка загрузки файлов');
+      // Не меняем view здесь, остаемся в текущем разделе
+    } catch (err) {
+      setError('Ошибка загрузки предметов');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadSubjectFiles = async (subject: Subject) => {
+  const loadMaterials = async (subject: Subject) => {
     try {
       setLoading(true);
-      const fileData = await getFilesByClassAndCategory(selectedClass!.id, currentCategory);
-      const subjectFiles = fileData.filter(file => file.subject_id === subject.id);
-      setFiles(subjectFiles);
+      const materialData = await getMaterialsByType(subject.id, currentSection);
+      setMaterials(materialData);
       setSelectedSubject(subject);
-      setView('subject-files');
-    } catch {
-      setError('Ошибка загрузки файлов предмета');
+      setView('materials');
+    } catch (err) {
+      setError('Ошибка загрузки материалов');
     } finally {
       setLoading(false);
     }
   };
 
-  // ====== Методы работы ======
+  // ====== Обработчики действий ======
+  const handleSectionChange = (section: 'SOR' | 'SOCH') => {
+    setCurrentSection(section);
+    setView(section.toLowerCase() as 'sor' | 'soch');
+    setSelectedClass(null);
+    setSelectedSubject(null);
+    setMaterials([]);
+    setSubjects([]);
+  };
+
   const handleGenerateKey = async () => {
     if (!selectedStudent) return;
     try {
@@ -151,18 +163,20 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
       setKeyExpiration('');
       const updatedKeys = await getStudentKeys(selectedStudent.id);
       setStudentKeys(updatedKeys);
-    } catch {
+      setSuccess('Ключ успешно сгенерирован');
+    } catch (err) {
       setError('Ошибка генерации ключа');
     }
   };
 
   const handleRevokeKey = async (key: KeyType) => {
-    if (!confirm('Вы уверены?')) return;
+    if (!confirm('Вы уверены, что хотите отозвать этот ключ?')) return;
     try {
       await revokeKey(key.id);
       const updatedKeys = await getStudentKeys(selectedStudent!.id);
       setStudentKeys(updatedKeys);
-    } catch {
+      setSuccess('Ключ успешно отозван');
+    } catch (err) {
       setError('Ошибка аннулирования ключа');
     }
   };
@@ -173,7 +187,8 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
       await updateStudentUrl(selectedStudent.id, editingUrl);
       setSelectedStudent({ ...selectedStudent, url: editingUrl });
       setShowEditUrlModal(false);
-    } catch {
+      setSuccess('URL успешно обновлен');
+    } catch (err) {
       setError('Ошибка обновления URL');
     }
   };
@@ -188,68 +203,95 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
       setShowExpirationModal(false);
       setSelectedKey(null);
       setKeyExpiration('');
-    } catch {
+      setSuccess('Срок действия ключа обновлен');
+    } catch (err) {
       setError('Ошибка обновления срока действия');
     }
   };
 
-  const handleFileUpload = async () => {
-    if (!selectedFile || !selectedClass || !selectedSubject) return;
+  const handleAddMaterial = async () => {
+    if (!materialTitle.trim() || !selectedSubject) return;
+
     try {
-      await uploadFile(selectedFile, selectedClass.id, selectedSubject.id, currentCategory);
-      setShowUploadModal(false);
-      setSelectedFile(null);
-      const fileData = await getFilesByClassAndCategory(selectedClass.id, currentCategory);
-      const subjectFiles = fileData.filter(file => file.subject_id === selectedSubject.id);
-      setFiles(subjectFiles);
-    } catch {
-      setError('Ошибка загрузки файла');
+      await createMaterial(
+        selectedSubject.id,
+        materialTitle.trim(),
+        currentSection,
+        materialContentType,
+        materialContent
+      );
+
+      setSuccess('Материал успешно добавлен');
+      setShowAddMaterialModal(false);
+      resetMaterialForm();
+      
+      // Обновляем список материалов
+      const updatedMaterials = await getMaterialsByType(selectedSubject.id, currentSection);
+      setMaterials(updatedMaterials);
+    } catch (err) {
+      setError('Ошибка добавления материала');
     }
   };
 
-  const handleDeleteFile = async (file: FileRecord) => {
-    if (!confirm('Удалить файл?')) return;
+  const handleDeleteMaterial = async (material: Material) => {
+    if (!confirm(`Удалить материал "${material.title}"?`)) return;
+
     try {
-      await deleteFile(file.id);
-      const fileData = await getFilesByClassAndCategory(selectedClass!.id, currentCategory);
-      const subjectFiles = fileData.filter(f => f.subject_id === selectedSubject!.id);
-      setFiles(subjectFiles);
-    } catch {
-      setError('Ошибка удаления файла');
+      await deleteMaterial(material.id);
+      setSuccess('Материал удален');
+      
+      // Обновляем список материалов
+      const updatedMaterials = await getMaterialsByType(selectedSubject!.id, currentSection);
+      setMaterials(updatedMaterials);
+    } catch (err) {
+      setError('Ошибка удаления материала');
     }
   };
 
-  const handleCreateSubject = async () => {
-    if (!newSubjectName.trim() || !selectedClass) return;
+  const handleResetPassword = async (student: Student) => {
+    if (!confirm(`Сбросить пароль для ${student.name}?`)) return;
+
     try {
-      await createSubject(selectedClass.id, newSubjectName.trim());
-      setShowCreateSubjectModal(false);
-      setNewSubjectName('');
-      const subjectData = await getSubjectsByClass(selectedClass.id);
-      setSubjects(subjectData);
-    } catch {
-      setError('Ошибка создания предмета');
+      await resetStudentPassword(student.id);
+      setSuccess(`Пароль для ${student.name} сброшен`);
+    } catch (err) {
+      setError('Ошибка сброса пароля');
     }
   };
 
-  const copyToClipboard = (text: string) => navigator.clipboard.writeText(text);
+  const resetMaterialForm = () => {
+    setMaterialTitle('');
+    setMaterialContentType('text');
+    setMaterialContent('');
+  };
 
   const handleBack = () => {
-    if (view === 'subject-files') {
-      setView('class-files');
+    if (view === 'materials') {
+      setView(currentSection.toLowerCase() as 'sor' | 'soch');
       setSelectedSubject(null);
-      setFiles([]);
-    } else if (view === 'class-files') {
-      setView('classes');
-      setSelectedClass(null);
-      setSubjects([]);
-      setFiles([]);
+      setMaterials([]);
+    } else if (view === 'sor' || view === 'soch') {
+      if (selectedClass) {
+        setView(currentSection.toLowerCase() as 'sor' | 'soch');
+        setSelectedClass(null);
+        setSubjects([]);
+      } else {
+        setView('main');
+      }
     } else if (view === 'student-profile') {
       setView('students');
       setSelectedStudent(null);
       setStudentKeys([]);
     } else if (view === 'students') {
-      setView('classes');
+      if (selectedClass) {
+        setView('students');
+        setSelectedClass(null);
+        setStudents([]);
+      } else {
+        setView('main');
+      }
+    } else if (view === 'classes') {
+      setView('main');
       setSelectedClass(null);
       setStudents([]);
     }
@@ -260,14 +302,20 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
     setShowKeyResultModal(false);
     setShowEditUrlModal(false);
     setShowExpirationModal(false);
-    setShowUploadModal(false);
-    setShowCreateSubjectModal(false);
+    setShowAddMaterialModal(false);
+    setShowImageModal(false);
     setGeneratedKey('');
     setKeyExpiration('');
     setSelectedKey(null);
-    setSelectedFile(null);
-    setNewSubjectName('');
+    setSelectedImage('');
+    resetMaterialForm();
     setError(null);
+    setSuccess(null);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setSuccess('Скопировано в буфер обмена');
   };
 
   const formatDate = (dateString: string) =>
@@ -276,73 +324,475 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
       hour: '2-digit', minute: '2-digit'
     });
 
+  const handleContentClick = (material: Material) => {
+    if (material.content_type === 'image') {
+      setSelectedImage(material.content_value);
+      setShowImageModal(true);
+    } else if (material.content_type === 'link' || material.content_type === 'file') {
+      window.open(material.content_value, '_blank');
+    }
+  };
+
+  const getContentIcon = (contentType: ContentType) => {
+    switch (contentType) {
+      case 'text': return <FileText className="w-5 h-5" />;
+      case 'image': return <Image className="w-5 h-5" />;
+      case 'file': return <Download className="w-5 h-5" />;
+      case 'link': return <ExternalLink className="w-5 h-5" />;
+    }
+  };
+
   // ====== Рендер ======
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Админ-панель</h1>
-          <button 
-            onClick={onLogout} 
-            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-          >
-            Выйти
-          </button>
-        </div>
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-gray-900">Админ-панель</h1>
+            
+            {/* Navigation */}
+            <nav className="hidden md:flex items-center space-x-6">
+              <button
+                onClick={() => setView('main')}
+                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                  view === 'main' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'
+                }`}
+              >
+                <Home className="w-4 h-4" />
+                <span>Главная</span>
+              </button>
+              <button
+                onClick={() => handleSectionChange('SOR')}
+                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                  view === 'sor' || view === 'materials' && currentSection === 'SOR' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:text-green-600'
+                }`}
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>СОР</span>
+              </button>
+              <button
+                onClick={() => handleSectionChange('SOCH')}
+                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                  view === 'soch' || view === 'materials' && currentSection === 'SOCH' ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:text-purple-600'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>СОЧ</span>
+              </button>
+              <button
+                onClick={() => setView('students')}
+                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                  view === 'students' || view === 'student-profile' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>Ученики</span>
+              </button>
+            </nav>
 
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
             <button
-              onClick={() => setError(null)}
-              className="ml-2 text-red-500 hover:text-red-700"
+              onClick={onLogout}
+              className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
             >
-              ✕
+              <LogOut className="w-4 h-4" />
+              <span>Выйти</span>
             </button>
           </div>
-        )}
 
+          {/* Mobile Navigation */}
+          <nav className="md:hidden mt-4 flex flex-wrap gap-2">
+            <button
+              onClick={() => setView('main')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors flex-1 justify-center ${
+                view === 'main' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'
+              }`}
+            >
+              <Home className="w-4 h-4" />
+              <span>Главная</span>
+            </button>
+            <button
+              onClick={() => handleSectionChange('SOR')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors flex-1 justify-center ${
+                view === 'sor' || view === 'materials' && currentSection === 'SOR' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:text-green-600'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>СОР</span>
+            </button>
+            <button
+              onClick={() => handleSectionChange('SOCH')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors flex-1 justify-center ${
+                view === 'soch' || view === 'materials' && currentSection === 'SOCH' ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:text-purple-600'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              <span>СОЧ</span>
+            </button>
+            <button
+              onClick={() => setView('students')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors flex-1 justify-center ${
+                view === 'students' || view === 'student-profile' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Ученики</span>
+            </button>
+          </nav>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-8">
         {/* Back Button */}
-        {view !== 'classes' && (
-          <button
+        {view !== 'main' && (
+          <motion.button
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
             onClick={handleBack}
             className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 mb-6 font-medium"
           >
             <ArrowLeft className="w-5 h-5" />
             <span>Назад</span>
-          </button>
+          </motion.button>
         )}
 
-        {/* Classes View */}
-        {view === 'classes' && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-            {classes.map((classItem, index) => (
-              <ClassCard
-                key={classItem.id}
-                classItem={classItem}
-                onClick={() => loadStudents(classItem)}
-                index={index}
-              />
-            ))}
+        {/* Notifications */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6"
+            >
+              {error}
+              <button
+                onClick={() => setError(null)}
+                className="ml-2 text-red-500 hover:text-red-700"
+              >
+                ✕
+              </button>
+            </motion.div>
+          )}
+          
+          {success && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-green-100 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6"
+            >
+              {success}
+              <button
+                onClick={() => setSuccess(null)}
+                className="ml-2 text-green-500 hover:text-green-700"
+              >
+                ✕
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main Dashboard */}
+        {view === 'main' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-4xl mx-auto"
+          >
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Добро пожаловать в админ-панель</h2>
+              <p className="text-gray-600">Выберите раздел для управления</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <motion.div
+                whileHover={{ scale: 1.02, y: -5 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleSectionChange('SOR')}
+                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
+              >
+                <div className="text-center">
+                  <div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <BookOpen className="w-10 h-10 text-green-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">СОР</h3>
+                  <p className="text-gray-600">Суммативное оценивание за раздел</p>
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.02, y: -5 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleSectionChange('SOCH')}
+                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
+              >
+                <div className="text-center">
+                  <div className="bg-purple-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FileText className="w-10 h-10 text-purple-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">СОЧ</h3>
+                  <p className="text-gray-600">Суммативное оценивание за четверть</p>
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.02, y: -5 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setView('students')}
+                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
+              >
+                <div className="text-center">
+                  <div className="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Users className="w-10 h-10 text-blue-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Ученики</h3>
+                  <p className="text-gray-600">Управление учениками и ключами</p>
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Classes Grid */}
+        {(view === 'sor' || view === 'soch' || view === 'students') && !selectedClass && (
+          <div>
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                {view === 'sor' && 'СОР - Выберите класс'}
+                {view === 'soch' && 'СОЧ - Выберите класс'}
+                {view === 'students' && 'Ученики - Выберите класс'}
+              </h2>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+              {classes.map((classItem, index) => (
+                <motion.div
+                  key={classItem.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => view === 'students' ? loadStudents(classItem) : loadSubjects(classItem)}
+                  className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 p-6"
+                >
+                  <div className="text-center">
+                    <h3 className="text-2xl font-bold text-gray-800">{classItem.name}</h3>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Subjects Grid */}
+        {(view === 'sor' || view === 'soch') && selectedClass && !selectedSubject && (
+          <div>
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                {currentSection} - {selectedClass.name} - Выберите предмет
+              </h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {subjects.map((subject, index) => (
+                <motion.div
+                  key={subject.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ scale: 1.01, y: -2 }}
+                  whileTap={{ scale: 0.99 }}
+                  onClick={() => loadMaterials(subject)}
+                  className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 p-4"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className={`p-2 rounded-lg ${currentSection === 'SOR' ? 'bg-green-100' : 'bg-purple-100'}`}>
+                      <BookOpen className={`w-5 h-5 ${currentSection === 'SOR' ? 'text-green-600' : 'text-purple-600'}`} />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-medium text-gray-900">{subject.name}</h3>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Materials View */}
+        {view === 'materials' && selectedSubject && (
+          <div>
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                {currentSection} - {selectedClass?.name} - {selectedSubject.name}
+              </h2>
+            </div>
+
+            {/* Add Material Button */}
+            <div className="mb-6">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowAddMaterialModal(true)}
+                className={`flex items-center space-x-2 px-6 py-3 rounded-lg text-white font-medium transition-all duration-300 shadow-lg ${
+                  currentSection === 'SOR' 
+                    ? 'bg-green-600 hover:bg-green-700' 
+                    : 'bg-purple-600 hover:bg-purple-700'
+                }`}
+              >
+                <Plus className="w-5 h-5" />
+                <span>Добавить материал</span>
+              </motion.button>
+            </div>
+
+            {/* Materials Grid */}
+            {materials.length === 0 ? (
+              <div className="text-center py-12">
+                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-medium text-gray-600 mb-2">Материалы не найдены</h3>
+                <p className="text-gray-500">Добавьте первый материал для этого предмета</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {materials.map((material, index) => (
+                  <motion.div
+                    key={material.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden"
+                  >
+                    {/* Material Header */}
+                    <div className={`p-4 ${currentSection === 'SOR' ? 'bg-green-50' : 'bg-purple-50'}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className={`p-2 rounded-lg ${currentSection === 'SOR' ? 'bg-green-100' : 'bg-purple-100'}`}>
+                            {getContentIcon(material.content_type)}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-900">{material.title}</h3>
+                            <p className="text-sm text-gray-600">{material.type}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteMaterial(material)}
+                          className="p-2 bg-red-100 rounded-lg hover:bg-red-200 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-600" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Material Content */}
+                    <div className="p-4">
+                      {material.content_type === 'text' && (
+                        <p className="text-gray-700 leading-relaxed">{material.content_value}</p>
+                      )}
+                      
+                      {material.content_type === 'image' && (
+                        <div className="text-center">
+                          <img
+                            src={material.content_value}
+                            alt={material.title}
+                            className="max-w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => handleContentClick(material)}
+                          />
+                        </div>
+                      )}
+                      
+                      {(material.content_type === 'file' || material.content_type === 'link') && (
+                        <div className="text-center">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleContentClick(material)}
+                            className="inline-flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            {getContentIcon(material.content_type)}
+                            <span>
+                              {material.content_type === 'file' ? 'Скачать' : 'Открыть'}
+                            </span>
+                          </motion.button>
+                        </div>
+                      )}
+                      
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <p className="text-sm text-gray-500">
+                          Создано: {formatDate(material.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {/* Students View */}
-        {view === 'students' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {students.map((student, index) => (
-              <StudentCard
-                key={student.id}
-                student={student}
-                onClick={() => loadStudentProfile(student)}
-                index={index}
-              />
-            ))}
+        {view === 'students' && selectedClass && (
+          <div>
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                Ученики класса {selectedClass.name}
+              </h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {students.map((student, index) => (
+                <motion.div
+                  key={student.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 p-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="bg-blue-100 p-2 rounded-lg">
+                        <Users className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-medium text-gray-900">{student.name}</h3>
+                        <p className="text-sm text-gray-500">
+                          {student.password_hash ? 'Пароль установлен' : 'Пароль не установлен'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => loadStudentProfile(student)}
+                        className="flex items-center space-x-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <Key className="w-4 h-4" />
+                        <span className="hidden sm:inline">Ключи</span>
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleResetPassword(student)}
+                        className="flex items-center space-x-2 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span className="hidden sm:inline">Сбросить</span>
+                      </motion.button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -363,14 +813,14 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
                   <div className="space-y-2">
                     <button
                       onClick={() => setShowGenerateKeyModal(true)}
-                      className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                      className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
                     >
                       <Key className="w-4 h-4 inline mr-2" />
                       Сгенерировать ключ
                     </button>
                     <button
                       onClick={() => setShowEditUrlModal(true)}
-                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                     >
                       <Edit className="w-4 h-4 inline mr-2" />
                       Изменить URL
@@ -409,7 +859,7 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
                         <div className="flex space-x-2">
                           <button
                             onClick={() => copyToClipboard(key.key_value)}
-                            className="p-2 text-blue-600 hover:bg-blue-100 rounded"
+                            className="p-2 text-blue-600 hover:bg-blue-100 rounded transition-colors"
                           >
                             <Copy className="w-4 h-4" />
                           </button>
@@ -420,13 +870,13 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
                                   setSelectedKey(key);
                                   setShowExpirationModal(true);
                                 }}
-                                className="p-2 text-yellow-600 hover:bg-yellow-100 rounded"
+                                className="p-2 text-yellow-600 hover:bg-yellow-100 rounded transition-colors"
                               >
                                 <Calendar className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleRevokeKey(key)}
-                                className="p-2 text-red-600 hover:bg-red-100 rounded"
+                                className="p-2 text-red-600 hover:bg-red-100 rounded transition-colors"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -463,7 +913,7 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
             </div>
             <button
               onClick={handleGenerateKey}
-              className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700"
+              className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
             >
               Сгенерировать ключ
             </button>
@@ -482,7 +932,7 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
             </div>
             <button
               onClick={() => copyToClipboard(generatedKey)}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700"
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Copy className="w-4 h-4 inline mr-2" />
               Скопировать
@@ -506,7 +956,7 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
             />
             <button
               onClick={handleUpdateUrl}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700"
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
             >
               Сохранить
             </button>
@@ -528,10 +978,104 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
             />
             <button
               onClick={handleUpdateExpiration}
-              className="w-full bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700"
+              className="w-full bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 transition-colors"
             >
               Обновить
             </button>
+          </div>
+        </Modal>
+
+        <Modal
+          isOpen={showAddMaterialModal}
+          onClose={closeAllModals}
+          title="Добавить материал"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Название материала
+              </label>
+              <input
+                type="text"
+                value={materialTitle}
+                onChange={(e) => setMaterialTitle(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Введите название"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Тип содержимого
+              </label>
+              <select
+                value={materialContentType}
+                onChange={(e) => setMaterialContentType(e.target.value as ContentType)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="text">Текст</option>
+                <option value="image">Изображение</option>
+                <option value="file">Файл</option>
+                <option value="link">Ссылка</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {materialContentType === 'text' && 'Текст'}
+                {materialContentType === 'image' && 'URL изображения'}
+                {materialContentType === 'file' && 'URL файла'}
+                {materialContentType === 'link' && 'Ссылка'}
+              </label>
+              
+              {materialContentType === 'text' ? (
+                <textarea
+                  value={materialContent}
+                  onChange={(e) => setMaterialContent(e.target.value)}
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Введите текст"
+                />
+              ) : (
+                <input
+                  type={materialContentType === 'link' ? 'url' : 'text'}
+                  value={materialContent}
+                  onChange={(e) => setMaterialContent(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder={
+                    materialContentType === 'link' ? 'https://example.com' : 
+                    materialContentType === 'image' ? 'https://example.com/image.jpg' :
+                    'https://example.com/file.pdf'
+                  }
+                />
+              )}
+            </div>
+
+            <button
+              onClick={handleAddMaterial}
+              disabled={!materialTitle.trim() || !materialContent.trim()}
+              className={`w-full py-2 px-4 rounded-lg text-white font-medium transition-all duration-300 disabled:bg-gray-300 disabled:cursor-not-allowed ${
+                currentSection === 'SOR' 
+                  ? 'bg-green-600 hover:bg-green-700' 
+                  : 'bg-purple-600 hover:bg-purple-700'
+              }`}
+            >
+              Добавить материал
+            </button>
+          </div>
+        </Modal>
+
+        <Modal
+          isOpen={showImageModal}
+          onClose={closeAllModals}
+          title="Просмотр изображения"
+        >
+          <div className="text-center">
+            <img
+              src={selectedImage}
+              alt="Просмотр"
+              className="max-w-full max-h-96 object-contain rounded-lg"
+            />
           </div>
         </Modal>
       </div>
