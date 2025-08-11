@@ -116,40 +116,43 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
     }
   };
 
-  const handleCreatePassword = async () => {
-    if (!newPassword.trim() || !confirmPassword.trim() || !selectedStudent) return;
+ const handleCreatePassword = async () => {
+  if (!newPassword.trim() || !confirmPassword.trim() || !selectedStudent) return;
 
-    if (newPassword !== confirmPassword) {
-      setError('Пароли не совпадают');
+  if (newPassword !== confirmPassword) {
+    setError('Пароли не совпадают');
+    return;
+  }
+
+  if (newPassword.length < 4) {
+    setError('Пароль должен содержать минимум 4 символа');
+    return;
+  }
+
+  try {
+    await createPassword(selectedStudent.id, newPassword);
+
+    // Ждём, чтобы Supabase точно сохранил
+    await new Promise(res => setTimeout(res, 500));
+
+    // Берём свежие данные студента
+    const updatedStudent = await getStudent(selectedStudent.id);
+    if (!updatedStudent) {
+      setError('Ошибка получения данных ученика');
       return;
     }
 
-    if (newPassword.length < 4) {
-      setError('Пароль должен содержать минимум 4 символа');
-      return;
-    }
-    
-    try {
-      await createPassword(selectedStudent.id, newPassword);
-      
-      // Получаем обновленные данные студента из базы данных
-      const updatedStudent = await getStudent(selectedStudent.id);
-      if (!updatedStudent) {
-        setError('Ошибка получения данных ученика');
-        return;
-      }
-      
-      setAuthenticatedStudent(updatedStudent);
-      setView('dashboard');
-      setShowCreatePasswordModal(false);
-      setNewPassword('');
-      setConfirmPassword('');
-      setError(null);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Ошибка создания пароля';
-      setError(errorMessage);
-    }
-  };
+    setAuthenticatedStudent(updatedStudent);
+    setView('dashboard'); // Сразу переходим в меню ученика
+    setShowCreatePasswordModal(false);
+    setNewPassword('');
+    setConfirmPassword('');
+    setError(null);
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Ошибка создания пароля';
+    setError(errorMessage);
+  }
+};
 
   const handleBack = () => {
     if (view === 'dashboard') {
