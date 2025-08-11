@@ -253,6 +253,21 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
 
     try {
       await resetStudentPassword(student.id);
+
+// Ждём, чтобы Supabase точно сохранил
+await new Promise(res => setTimeout(res, 500));
+
+// Берём свежие данные
+const updatedStudent = await getStudent(student.id);
+setSelectedStudent(updatedStudent);
+
+// Обновляем список учеников
+setStudents(prevStudents => 
+  prevStudents.map(s => 
+    s.id === student.id ? updatedStudent : s
+  )
+);
+
       
       // Обновляем локальное состояние студента
       setStudents(prevStudents => 
