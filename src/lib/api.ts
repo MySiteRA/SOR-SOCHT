@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import bcrypt from 'bcryptjs';
 import type { Class, Student, Key, Subject, FileRecord, Download, Material } from './supabase';
+import { getStudent } from '../lib/api';
 
 // ==================== Классы ====================
 export async function getClasses(): Promise<Class[]> {
@@ -39,7 +40,6 @@ export async function getStudentsByClass(classId: string): Promise<Student[]> {
   if (error) throw error;
   return data || [];
 }
-
 export async function getStudent(studentId: string): Promise<Student | null> {
   const { data, error } = await supabase.from('students').select('*').eq('id', studentId).single();
   if (error) {
@@ -50,17 +50,22 @@ export async function getStudent(studentId: string): Promise<Student | null> {
 }
 
 // ==================== Ключи ====================
-export async function validateKey(keyValue: string): Promise<{ valid: boolean; student: Student | null }> {
+export async function validateKey(keyValue: string, studentId: string): Promise<{ valid: boolean; student: Student | null }> {
   const { data: keyData, error: keyError } = await supabase
     .from('keys')
     .select('*, students(*)')
     .eq('key_value', keyValue)
+    .eq('student_id', studentId)
     .eq('status', 'active')
     .single();
+    
   if (keyError || !keyData) return { valid: false, student: null };
+  
+  // Проверяем срок действия ключа
   if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
     return { valid: false, student: null };
   }
+  
   return { valid: true, student: Array.isArray(keyData.students) ? keyData.students[0] : keyData.students };
 }
 
@@ -97,27 +102,63 @@ export async function getStudentKeys(studentId: string): Promise<Key[]> {
 
 // ==================== Пароли ====================
 export async function validatePassword(studentId: string, password: string): Promise<{ valid: boolean; student: Student | null }> {
-  const { data: student, error } = await supabase.from('students').select('*').eq('id', studentId).single();
-  if (error || !student || !student.password_hash) return { valid: false, student: null };
+  const { data: student, error } = await supabase
+    .from('students')
+    .select('*')
+    .eq('id', studentId)
+    .single();
+  
+  if (error || !student) {
+    return { valid: false, student: null };
+  }
+  
+  // Проверяем, установлен ли пароль
+  if (!student.password_hash) {
+    throw new Error('Пароль не установлен');
+  }
+  
   const isValid = await bcrypt.compare(password, student.password_hash);
   return { valid: isValid, student: isValid ? student : null };
 }
 
 export async function createPassword(studentId: string, password: string): Promise<void> {
+  // Проверяем, что пароль не пустой
+  if (!password || password.trim().length === 0) {
+    throw new Error('Пароль не может быть пустым');
+  }
+  
+  // Проверяем минимальную длину пароля
+  if (password.trim().length < 4) {
+    throw new Error('Пароль должен содержать минимум 4 символа');
+  }
+  
   const hashedPassword = await bcrypt.hash(password, 10);
-  const { error } = await supabase.from('students').update({ password_hash: hashedPassword }).eq('id', studentId);
+  const { error } = await supabase
+    .from('students')
+    .update({ password_hash: hashedPassword })
+    .eq('id', studentId);
+    
   if (error) throw error;
   await logAction('PASSWORD_CREATED', `Password created for student ${studentId}`);
 }
 
 export async function resetStudentPassword(studentId: string): Promise<void> {
-  const { error } = await supabase.from('students').update({ password_hash: null }).eq('id', studentId);
+  const { error } = await supabase
+    .from('students')
+    .update({ password_hash: null })
+    .eq('id', studentId);
+    
   if (error) throw error;
   await logAction('PASSWORD_RESET', `Password reset for student ${studentId}`);
 }
 
 export async function updateStudentUrl(studentId: string, url: string): Promise<void> {
-  const { error } = await supabase.from('students').update({ url }).eq('id', studentId);
+  // Обновляем только URL, не трогая password_hash
+  const { error } = await supabase
+    .from('students')
+    .update({ url })
+    .eq('id', studentId);
+    
   if (error) throw error;
   await logAction('URL_UPDATED', `URL updated for student ${studentId} to ${url}`);
 }

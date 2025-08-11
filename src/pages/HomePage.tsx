@@ -78,18 +78,17 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
   };
 
   const handleKeySubmit = async () => {
-    if (!keyInput.trim()) return;
+    if (!keyInput.trim() || !selectedStudent) return;
 
     try {
-      const result = await validateKey(keyInput.trim());
+      const result = await validateKey(keyInput.trim(), selectedStudent.id);
       
       if (result.valid && result.student) {
         setShowKeyModal(false);
         setKeyInput('');
-        setSelectedStudent(result.student);
         setShowCreatePasswordModal(true);
       } else {
-        setError('Неверный или неактивный ключ');
+        setError('Неверный ключ или ключ не принадлежит этому ученику');
       }
     } catch (err) {
       setError('Ошибка проверки ключа');
@@ -102,16 +101,18 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
     try {
       const result = await validatePassword(selectedStudent.id, passwordInput.trim());
       
-      if (result.valid && result.student && result.student.url) {
+      if (result.valid && result.student) {
         setAuthenticatedStudent(result.student);
         setView('dashboard');
         setShowPasswordModal(false);
         setPasswordInput('');
+        setError(null);
       } else {
         setError('Неверный пароль');
       }
     } catch (err) {
-      setError('Ошибка проверки пароля');
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка проверки пароля';
+      setError(errorMessage);
     }
   };
 
@@ -123,15 +124,30 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
       return;
     }
 
+    if (newPassword.length < 4) {
+      setError('Пароль должен содержать минимум 4 символа');
+      return;
+    }
+    
     try {
       await createPassword(selectedStudent.id, newPassword);
-      setAuthenticatedStudent(selectedStudent);
+      
+      // Получаем обновленные данные студента из базы данных
+      const updatedStudent = await getStudent(selectedStudent.id);
+      if (!updatedStudent) {
+        setError('Ошибка получения данных ученика');
+        return;
+      }
+      
+      setAuthenticatedStudent(updatedStudent);
       setView('dashboard');
       setShowCreatePasswordModal(false);
       setNewPassword('');
       setConfirmPassword('');
+      setError(null);
     } catch (err) {
-      setError('Ошибка создания пароля');
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка создания пароля';
+      setError(errorMessage);
     }
   };
 
@@ -276,7 +292,9 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
           title="Введите ключ"
         >
           <div className="space-y-4">
-            <p className="text-gray-600">Введите ключ доступа для входа в систему</p>
+            <p className="text-gray-600">
+              Введите ключ доступа для ученика <strong>{selectedStudent?.name}</strong>
+            </p>
             <input
               type="text"
               value={keyInput}
@@ -302,7 +320,9 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
           title="Введите пароль"
         >
           <div className="space-y-4">
-            <p className="text-gray-600">Введите ваш пароль для входа в систему</p>
+            <p className="text-gray-600">
+              Введите пароль для ученика <strong>{selectedStudent?.name}</strong>
+            </p>
             <input
               type="password"
               value={passwordInput}
@@ -328,7 +348,9 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
           title="Создание пароля"
         >
           <div className="space-y-4">
-            <p className="text-gray-600">Создайте пароль для дальнейшего входа в систему</p>
+            <p className="text-gray-600">
+              Создайте пароль для ученика <strong>{selectedStudent?.name}</strong> для дальнейшего входа в систему
+            </p>
             <input
               type="password"
               value={newPassword}

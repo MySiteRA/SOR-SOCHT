@@ -253,9 +253,25 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
 
     try {
       await resetStudentPassword(student.id);
+      
+      // Обновляем локальное состояние студента
+      setStudents(prevStudents => 
+        prevStudents.map(s => 
+          s.id === student.id 
+            ? { ...s, password_hash: null }
+            : s
+        )
+      );
+      
+      // Если это текущий выбранный студент, обновляем и его
+      if (selectedStudent && selectedStudent.id === student.id) {
+        setSelectedStudent({ ...selectedStudent, password_hash: null });
+      }
+      
       setSuccess(`Пароль для ${student.name} сброшен`);
     } catch (err) {
-      setError('Ошибка сброса пароля');
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка сброса пароля';
+      setError(errorMessage);
     }
   };
 
