@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Calculator, Zap, FlaskRound as Flask, Leaf, Clock, Globe, Type, Languages, Monitor } from 'lucide-react';
 import type { Subject } from '../lib/supabase';
 
 interface SubjectCardProps {
@@ -10,6 +10,23 @@ interface SubjectCardProps {
 }
 
 export default function SubjectCard({ subject, onClick, index }: SubjectCardProps) {
+  const getIconComponent = () => {
+    const icons: { [key: string]: React.ComponentType<any> } = {
+      BookOpen,
+      Calculator,
+      Zap,
+      Flask,
+      Leaf,
+      Clock,
+      Globe,
+      Type,
+      Languages,
+      Monitor
+    };
+    const IconComponent = icons[subject.icon] || BookOpen;
+    return <IconComponent className="w-5 h-5 text-indigo-600" />;
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -22,7 +39,7 @@ export default function SubjectCard({ subject, onClick, index }: SubjectCardProp
     >
       <div className="flex items-center space-x-3">
         <div className="bg-indigo-100 p-2 rounded-lg">
-          <BookOpen className="w-5 h-5 text-indigo-600" />
+          {getIconComponent()}
         </div>
         <div className="flex-1">
           <h3 className="text-lg font-medium text-gray-900">{subject.name}</h3>

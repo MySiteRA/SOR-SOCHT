@@ -2,16 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, BookOpen, FileText, Users } from 'lucide-react';
 import SubjectCard from '../components/SubjectCard';
-import FileCard from '../components/FileCard';
+import MaterialCard from '../components/MaterialCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { 
-  getSubjectsByClass, 
-  getFilesBySubjectAndCategory, 
-  recordDownload 
+  getSubjects,
+  getMaterialsByType
 } from '../lib/api';
-import type { Student, Subject, FileRecord } from '../lib/supabase';
+import type { Student, Subject, Material } from '../lib/supabase';
 
-type DashboardView = 'main' | 'sor' | 'soch' | 'subject-files';
+type DashboardView = 'main' | 'sor' | 'soch' | 'materials';
 
 interface StudentDashboardProps {
   student: Student;
@@ -22,7 +21,7 @@ interface StudentDashboardProps {
 export default function StudentDashboard({ student, className, onLogout }: StudentDashboardProps) {
   const [view, setView] = useState<DashboardView>('main');
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [files, setFiles] = useState<FileRecord[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [currentCategory, setCurrentCategory] = useState<'SOR' | 'SOCH'>('SOR');
   const [loading, setLoading] = useState(false);
@@ -32,12 +31,12 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
     if (view === 'sor' || view === 'soch') {
       loadSubjects();
     }
-  }, [view, student.class_id]);
+  }, [view]);
 
   const loadSubjects = async () => {
     try {
       setLoading(true);
-      const subjectData = await getSubjectsByClass(student.class_id);
+      const subjectData = await getSubjects();
       setSubjects(subjectData);
     } catch (err) {
       setError('Ошибка загрузки предметов');
@@ -46,38 +45,26 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
     }
   };
 
-  const loadSubjectFiles = async (subject: Subject, category: 'SOR' | 'SOCH') => {
+  const loadSubjectMaterials = async (subject: Subject, category: 'SOR' | 'SOCH') => {
     try {
       setLoading(true);
-      const fileData = await getFilesBySubjectAndCategory(subject.id, category);
-      setFiles(fileData);
+      const materialData = await getMaterialsByType(subject.id, category);
+      setMaterials(materialData);
       setSelectedSubject(subject);
       setCurrentCategory(category);
-      setView('subject-files');
+      setView('materials');
     } catch (err) {
-      setError('Ошибка загрузки файлов');
+      setError('Ошибка загрузки материалов');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDownload = async (file: FileRecord) => {
-    try {
-      // Записываем скачивание в статистику
-      await recordDownload(student.id, file.id);
-      
-      // Открываем файл в новой вкладке
-      window.open(file.file_url, '_blank');
-    } catch (err) {
-      setError('Ошибка при скачивании файла');
-    }
-  };
-
   const handleBack = () => {
-    if (view === 'subject-files') {
+    if (view === 'materials') {
       setView(currentCategory.toLowerCase() as 'sor' | 'soch');
       setSelectedSubject(null);
-      setFiles([]);
+      setMaterials([]);
     } else if (view === 'sor' || view === 'soch') {
       setView('main');
       setSubjects([]);
@@ -121,12 +108,14 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
               <p className="text-xl text-gray-600">Суммативное оценивание за четверть</p>
             </>
           )}
-          {view === 'subject-files' && selectedSubject && (
+          {view === 'materials' && selectedSubject && (
             <>
               <h1 className="text-4xl font-bold text-gray-900 mb-2">
                 {selectedSubject.name} - {currentCategory}
               </h1>
-              <p className="text-xl text-gray-600">Материалы для изучения</p>
+              <p className="text-xl text-gray-600">
+                {currentCategory === 'SOR' ? 'Суммативное оценивание за раздел' : 'Суммативное оценивание за четверть'}
+              </p>
             </>
           )}
         </motion.div>
@@ -231,35 +220,34 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
                 <SubjectCard
                   key={subject.id}
                   subject={subject}
-                  onClick={() => loadSubjectFiles(subject, view.toUpperCase() as 'SOR' | 'SOCH')}
+                  onClick={() => loadSubjectMaterials(subject, view.toUpperCase() as 'SOR' | 'SOCH')}
                   index={index}
                 />
               ))}
             </motion.div>
           )}
 
-          {/* Files List */}
-          {view === 'subject-files' && !loading && (
+          {/* Materials List */}
+          {view === 'materials' && !loading && (
             <motion.div
-              key="files"
+              key="materials"
               initial={{ opacity: 0, x: 100 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -100 }}
               transition={{ duration: 0.3 }}
-              className="space-y-4"
+              className="grid grid-cols-1 md:grid-cols-2 gap-6"
             >
-              {files.length === 0 ? (
-                <div className="text-center py-12">
+              {materials.length === 0 ? (
+                <div className="col-span-full text-center py-12">
                   <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-medium text-gray-600 mb-2">Файлы не найдены</h3>
-                  <p className="text-gray-500">Материалы для этого предмета пока не загружены</p>
+                  <h3 className="text-xl font-medium text-gray-600 mb-2">Материалы не найдены</h3>
+                  <p className="text-gray-500">Материалы для этого предмета пока не добавлены</p>
                 </div>
               ) : (
-                files.map((file, index) => (
-                  <FileCard
-                    key={file.id}
-                    file={file}
-                    onDownload={() => handleDownload(file)}
+                materials.map((material, index) => (
+                  <MaterialCard
+                    key={material.id}
+                    material={material}
                     index={index}
                   />
                 ))

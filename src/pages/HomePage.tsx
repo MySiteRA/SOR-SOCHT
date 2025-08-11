@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Shield } from 'lucide-react';
 import ClassCard from '../components/ClassCard';
 import StudentCard from '../components/StudentCard';
 import Modal from '../components/Modal';
@@ -9,9 +9,13 @@ import StudentDashboard from './StudentDashboard';
 import { getClasses, getStudentsByClass, validateKey, validatePassword, createPassword } from '../lib/api';
 import type { Class, Student } from '../lib/supabase';
 
-type View = 'classes' | 'students' | 'dashboard';
+type View = 'classes' | 'students' | 'dashboard' | 'admin-login';
 
-export default function HomePage() {
+interface HomePageProps {
+  onShowAdminModal: () => void;
+}
+
+export default function HomePage({ onShowAdminModal }: HomePageProps) {
   const [view, setView] = useState<View>('classes');
   const [classes, setClasses] = useState<Class[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -40,19 +44,7 @@ export default function HomePage() {
     try {
       setLoading(true);
       const classData = await getClasses();
-
-      // Сортировка: сначала по номеру (от большего к меньшему), затем по букве
-      const sorted = [...classData].sort((a, b) => {
-        const gradeA = parseInt(a.name);
-        const gradeB = parseInt(b.name);
-
-        if (gradeA !== gradeB) {
-          return gradeB - gradeA;
-        }
-        return a.name.localeCompare(b.name, 'ru');
-      });
-
-      setClasses(sorted);
+      setClasses(classData);
     } catch (err) {
       setError('Ошибка загрузки классов');
     } finally {
@@ -185,6 +177,7 @@ export default function HomePage() {
     );
   }
 
+  // Show student dashboard if authenticated
   if (view === 'dashboard' && authenticatedStudent && selectedClass) {
     return (
       <StudentDashboard
@@ -205,13 +198,29 @@ export default function HomePage() {
           className="text-center mb-8"
         >
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Лучший сайт ответов для сор и соч
+            Тестовая система
           </h1>
           <p className="text-xl text-gray-600">
             {view === 'classes' ? 'Выберите класс' : `Выберите ученика из ${selectedClass?.name}`}
           </p>
         </motion.div>
 
+        {/* Admin Login Button */}
+        {view === 'classes' && (
+          <div className="absolute top-4 right-4">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onShowAdminModal}
+              className="flex items-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 shadow-lg"
+            >
+              <Shield className="w-4 h-4" />
+              <span>Вход для администратора</span>
+            </motion.button>
+          </div>
+        )}
+
+        {/* Back Button */}
         {view === 'students' && (
           <motion.button
             initial={{ opacity: 0, x: -20 }}
@@ -224,6 +233,7 @@ export default function HomePage() {
           </motion.button>
         )}
 
+        {/* Error Message */}
         {error && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -240,6 +250,7 @@ export default function HomePage() {
           </motion.div>
         )}
 
+        {/* Classes View */}
         {view === 'classes' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
             {classes.map((classItem, index) => (
@@ -253,6 +264,7 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* Students View */}
         {view === 'students' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {students.map((student, index) => (

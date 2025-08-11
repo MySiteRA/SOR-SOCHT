@@ -66,3 +66,21 @@ export interface Download {
   file_id: string;
   downloaded_at: string;
 }
+
+export interface Subject {
+  id: string;
+  name: string;
+  icon: string;
+  created_at: string;
+}
+
+export interface Material {
+  id: string;
+  subject_id: string;
+  title: string;
+  type: 'SOR' | 'SOCH';
+  content_type: 'text' | 'image' | 'file' | 'link';
+  content_value: string;
+  created_at: string;
+  subject?: Subject;
+}
