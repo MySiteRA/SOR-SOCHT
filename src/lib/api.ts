@@ -1,7 +1,6 @@
 import { supabase } from './supabase';
 import bcrypt from 'bcryptjs';
 import type { Class, Student, Key, Subject, FileRecord, Download, Material } from './supabase';
-import { getStudent } from '../lib/api';
 
 // ==================== Классы ====================
 export async function getClasses(): Promise<Class[]> {
