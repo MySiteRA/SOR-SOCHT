@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { getStudent } from '../lib/api'; // путь может отличаться
 import {
   getClasses, getStudentsByClass, getStudent, getStudentKeys,
   getSubjects, getMaterialsByType, generateKey,
