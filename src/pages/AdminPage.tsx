@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { getStudent } from '../lib/api'; // путь может отличаться
 import {
   getClasses, getStudentsByClass, getStudent, getStudentKeys,
   getSubjects, getMaterialsByType, generateKey,
@@ -55,8 +54,13 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
   
   // Форма материала
   const [materialTitle, setMaterialTitle] = useState('');
-  const [materialContentType, setMaterialContentType] = useState<ContentType>('text');
-  const [materialContent, setMaterialContent] = useState('');
+  const [selectedContentTypes, setSelectedContentTypes] = useState<ContentType[]>(['text']);
+  const [materialContents, setMaterialContents] = useState<Record<ContentType, string>>({
+    text: '',
+    image: '',
+    file: '',
+    link: ''
+  });
 
   // ====== Загрузка данных ======
   useEffect(() => {
@@ -211,16 +215,26 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
   };
 
   const handleAddMaterial = async () => {
-    if (!materialTitle.trim() || !selectedSubject) return;
+    if (!materialTitle.trim() || !selectedSubject || selectedContentTypes.length === 0) return;
+
+    // Проверяем, что для всех выбранных типов есть контент
+    const hasEmptyContent = selectedContentTypes.some(type => !materialContents[type].trim());
+    if (hasEmptyContent) {
+      setError('Заполните все поля для выбранных типов контента');
+      return;
+    }
 
     try {
-      await createMaterial(
-        selectedSubject.id,
-        materialTitle.trim(),
-        currentSection,
-        materialContentType,
-        materialContent
-      );
+      // Создаем материал для каждого выбранного типа контента
+      for (const contentType of selectedContentTypes) {
+        await createMaterial(
+          selectedSubject.id,
+          `${materialTitle.trim()}${selectedContentTypes.length > 1 ? ` (${contentType})` : ''}`,
+          currentSection,
+          contentType,
+          materialContents[contentType].trim()
+        );
+      }
 
       setSuccess('Материал успешно добавлен');
       setShowAddMaterialModal(false);
@@ -293,8 +307,41 @@ setStudents(prevStudents =>
 
   const resetMaterialForm = () => {
     setMaterialTitle('');
-    setMaterialContentType('text');
-    setMaterialContent('');
+    setSelectedContentTypes(['text']);
+    setMaterialContents({
+      text: '',
+      image: '',
+      file: '',
+      link: ''
+    });
+  };
+
+  const handleContentTypeToggle = (type: ContentType) => {
+    setSelectedContentTypes(prev => {
+      if (prev.includes(type)) {
+        // Не позволяем убрать все типы
+        if (prev.length === 1) return prev;
+        return prev.filter(t => t !== type);
+      } else {
+        return [...prev, type];
+      }
+    });
+  };
+
+  const handleContentChange = (type: ContentType, value: string) => {
+    setMaterialContents(prev => ({
+      ...prev,
+      [type]: value
+    }));
+  };
+
+  const getContentTypeLabel = (type: ContentType) => {
+    switch (type) {
+      case 'text': return 'Текст';
+      case 'image': return 'Изображение';
+      case 'file': return 'Файл';
+      case 'link': return 'Ссылка';
+    }
   };
 
   const handleBack = () => {
@@ -1038,54 +1085,68 @@ setStudents(prevStudents =>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Тип содержимого
+                Типы содержимого (можно выбрать несколько)
               </label>
-              <select
-                value={materialContentType}
-                onChange={(e) => setMaterialContentType(e.target.value as ContentType)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="text">Текст</option>
-                <option value="image">Изображение</option>
-                <option value="file">Файл</option>
-                <option value="link">Ссылка</option>
-              </select>
+              <div className="grid grid-cols-2 gap-2">
+                {(['text', 'image', 'file', 'link'] as ContentType[]).map(type => (
+                  <label key={type} className="flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="checkbox"
+                      checked={selectedContentTypes.includes(type)}
+                      onChange={() => handleContentTypeToggle(type)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="flex items-center space-x-2">
+                      {getContentIcon(type)}
+                      <span className="text-sm font-medium">{getContentTypeLabel(type)}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {materialContentType === 'text' && 'Текст'}
-                {materialContentType === 'image' && 'URL изображения'}
-                {materialContentType === 'file' && 'URL файла'}
-                {materialContentType === 'link' && 'Ссылка'}
-              </label>
-              
-              {materialContentType === 'text' ? (
-                <textarea
-                  value={materialContent}
-                  onChange={(e) => setMaterialContent(e.target.value)}
-                  rows={4}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Введите текст"
-                />
-              ) : (
-                <input
-                  type={materialContentType === 'link' ? 'url' : 'text'}
-                  value={materialContent}
-                  onChange={(e) => setMaterialContent(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder={
-                    materialContentType === 'link' ? 'https://example.com' : 
-                    materialContentType === 'image' ? 'https://example.com/image.jpg' :
-                    'https://example.com/file.pdf'
-                  }
-                />
-              )}
-            </div>
+            {/* Поля ввода для каждого выбранного типа */}
+            {selectedContentTypes.map(type => (
+              <div key={type}>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {getContentTypeLabel(type)}
+                  {type === 'text' && ' - содержимое'}
+                  {type === 'image' && ' - URL изображения'}
+                  {type === 'file' && ' - URL файла'}
+                  {type === 'link' && ' - ссылка'}
+                </label>
+                
+                {type === 'text' ? (
+                  <textarea
+                    value={materialContents[type]}
+                    onChange={(e) => handleContentChange(type, e.target.value)}
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Введите текст"
+                  />
+                ) : (
+                  <input
+                    type={type === 'link' ? 'url' : 'text'}
+                    value={materialContents[type]}
+                    onChange={(e) => handleContentChange(type, e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder={
+                      type === 'link' ? 'https://example.com' : 
+                      type === 'image' ? 'https://example.com/image.jpg' :
+                      'https://example.com/file.pdf'
+                    }
+                  />
+                )}
+              </div>
+            ))}
 
             <button
               onClick={handleAddMaterial}
-              disabled={!materialTitle.trim() || !materialContent.trim()}
+              disabled={
+                !materialTitle.trim() || 
+                selectedContentTypes.length === 0 ||
+                selectedContentTypes.some(type => !materialContents[type].trim())
+              }
               className={`w-full py-2 px-4 rounded-lg text-white font-medium transition-all duration-300 disabled:bg-gray-300 disabled:cursor-not-allowed ${
                 currentSection === 'SOR' 
                   ? 'bg-green-600 hover:bg-green-700' 
