@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, BookOpen, FileText, Users, LogOut, User } from 'lucide-react';
+import { ArrowLeft, BookOpen, FileText, Users, MoreVertical, LogOut, Trash2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
 import { 
   getSubjects,
   getMaterialsByType
@@ -74,6 +80,16 @@ export default function StudentDashboardPage({ student, className }: StudentDash
 
   const handleLogout = () => {
     localStorage.removeItem('studentLogin');
+    localStorage.removeItem('studentId');
+    localStorage.removeItem('createdAt');
+    localStorage.removeItem('studentDashboardData');
+    navigate('/');
+  };
+
+  const handleForgetSession = () => {
+    localStorage.removeItem('studentId');
+    localStorage.removeItem('createdAt');
+    localStorage.removeItem('studentDashboardData');
     navigate('/');
   };
 
@@ -110,12 +126,14 @@ export default function StudentDashboardPage({ student, className }: StudentDash
                 </button>
               )}
               <div>
+                <div className="flex items-center space-x-3 mb-1">
                 <h1 className="text-2xl font-bold text-gray-900">
                   {view === 'main' && `${t('home.welcome')}, ${getStudentName()}!`}
                   {view === 'sor' && t('dashboard.sor')}
                   {view === 'soch' && t('dashboard.soch')}
                   {view === 'materials' && selectedSubject && `${selectedSubject.name} - ${currentCategory}`}
                 </h1>
+                </div>
                 <p className="text-gray-600">
                   {view === 'main' && `${t('home.class')} ${className}`}
                   {view === 'sor' && t('dashboard.sorDesc')}
@@ -126,17 +144,48 @@ export default function StudentDashboardPage({ student, className }: StudentDash
             </div>
             
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-gray-600">
-                <User className="w-4 h-4" />
-                <span className="text-sm">{getStudentName()}</span>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>{t('auth.logout')}</span>
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex items-center justify-center w-10 h-10 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md"
+                  >
+                    <MoreVertical className="w-5 h-5 text-gray-600" />
+                  </motion.button>
+                </DropdownMenuTrigger>
+                
+                <DropdownMenuContent 
+                  align="end" 
+                  className="w-48 mt-2"
+                  asChild
+                >
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                  >
+                    <div>
+                      <DropdownMenuItem 
+                        onClick={handleForgetSession}
+                        className="cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4 mr-3 text-orange-500" />
+                        <span className="text-gray-700">Забыть сеанс</span>
+                      </DropdownMenuItem>
+                      
+                      <DropdownMenuItem 
+                        onClick={handleLogout}
+                        className="cursor-pointer"
+                      >
+                        <LogOut className="w-4 h-4 mr-3 text-red-500" />
+                        <span className="text-gray-700">{t('auth.logout')}</span>
+                      </DropdownMenuItem>
+                    </div>
+                  </motion.div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
