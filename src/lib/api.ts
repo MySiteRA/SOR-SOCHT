@@ -48,6 +48,9 @@ export async function getStudent(studentId: string): Promise<Student | null> {
   return data;
 }
 
+// Импортируем функцию из нового сервиса
+export { getStudent as getStudentById } from '../services/student';
+
 // ==================== Ключи ====================
 export async function validateKey(keyValue: string, studentId: string): Promise<{ valid: boolean; student: Student | null }> {
   const { data: keyData, error: keyError } = await supabase
@@ -69,13 +72,26 @@ export async function validateKey(keyValue: string, studentId: string): Promise<
 }
 
 export async function generateKey(studentId: string, expiresAt?: string): Promise<string> {
-  const keyValue = Math.random().toString(36).substring(2) + Date.now().toString(36);
+  // Генерируем ключ в формате XXXX-XXXX-XXXX
+  const generateFormattedKey = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 12; i++) {
+      if (i > 0 && i % 4 === 0) result += '-';
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+  
+  const keyValue = generateFormattedKey();
+  
   const { error } = await supabase.from('keys').insert({
     student_id: studentId,
     key_value: keyValue,
     status: 'active',
     expires_at: expiresAt || null
   });
+  
   if (error) throw error;
   await logAction('KEY_GENERATED', `Key generated for student ${studentId}`);
   return keyValue;
@@ -117,6 +133,15 @@ export async function validatePassword(studentId: string, password: string): Pro
   }
   
   const isValid = await bcrypt.compare(password, student.password_hash);
+  
+  // Обновляем время последнего входа при успешной авторизации
+  if (isValid) {
+    await supabase
+      .from('students')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', studentId);
+  }
+  
   return { valid: isValid, student: isValid ? student : null };
 }
 
@@ -134,7 +159,11 @@ export async function createPassword(studentId: string, password: string): Promi
   const hashedPassword = await bcrypt.hash(password, 10);
   const { error } = await supabase
     .from('students')
-    .update({ password_hash: hashedPassword })
+    .update({ 
+      password_hash: hashedPassword,
+      registration_date: new Date().toISOString(),
+      last_login: new Date().toISOString()
+    })
     .eq('id', studentId);
     
   if (error) throw error;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, BookOpen, FileText, Users } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 import SubjectCard from '../components/SubjectCard';
 import MaterialCard from '../components/MaterialCard';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -19,6 +20,7 @@ interface StudentDashboardProps {
 }
 
 export default function StudentDashboard({ student, className, onLogout }: StudentDashboardProps) {
+  const { t } = useLanguage();
   const [view, setView] = useState<DashboardView>('main');
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -91,21 +93,21 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
           {view === 'main' && (
             <>
               <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                Здравствуйте, {getStudentName()}!
+                {t('home.welcome')}, {getStudentName()}!
               </h1>
-              <p className="text-xl text-gray-600">Класс {className}</p>
+              <p className="text-xl text-gray-600">{t('home.class')} {className}</p>
             </>
           )}
           {view === 'sor' && (
             <>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">СОР</h1>
-              <p className="text-xl text-gray-600">Суммативное оценивание за раздел</p>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">{t('dashboard.sor')}</h1>
+              <p className="text-xl text-gray-600">{t('dashboard.sorDesc')}</p>
             </>
           )}
           {view === 'soch' && (
             <>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">СОЧ</h1>
-              <p className="text-xl text-gray-600">Суммативное оценивание за четверть</p>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">{t('dashboard.soch')}</h1>
+              <p className="text-xl text-gray-600">{t('dashboard.sochDesc')}</p>
             </>
           )}
           {view === 'materials' && selectedSubject && (
@@ -114,7 +116,7 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
                 {selectedSubject.name} - {currentCategory}
               </h1>
               <p className="text-xl text-gray-600">
-                {currentCategory === 'SOR' ? 'Суммативное оценивание за раздел' : 'Суммативное оценивание за четверть'}
+                {currentCategory === 'SOR' ? t('dashboard.sorDesc') : t('dashboard.sochDesc')}
               </p>
             </>
           )}
@@ -129,7 +131,7 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
             className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 mb-6 font-medium"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span>Назад</span>
+            <span>{t('common.back')}</span>
           </motion.button>
         )}
 
@@ -139,7 +141,7 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
             onClick={onLogout}
             className="text-gray-600 hover:text-gray-800 font-medium"
           >
-            Выйти
+            {t('admin.logout')}
           </button>
         </div>
 
@@ -185,7 +187,8 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
                     <BookOpen className="w-10 h-10 text-green-600" />
                   </div>
                   <h2 className="text-3xl font-bold text-gray-900 mb-2">СОР</h2>
-                  <p className="text-gray-600">Суммативное оценивание за раздел</p>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('dashboard.sor')}</h2>
+                  <p className="text-gray-600">{t('dashboard.sorDesc')}</p>
                 </div>
               </motion.div>
 
@@ -200,7 +203,8 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
                     <FileText className="w-10 h-10 text-purple-600" />
                   </div>
                   <h2 className="text-3xl font-bold text-gray-900 mb-2">СОЧ</h2>
-                  <p className="text-gray-600">Суммативное оценивание за четверть</p>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('dashboard.soch')}</h2>
+                  <p className="text-gray-600">{t('dashboard.sochDesc')}</p>
                 </div>
               </motion.div>
             </motion.div>
@@ -240,8 +244,8 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
               {materials.length === 0 ? (
                 <div className="col-span-full text-center py-12">
                   <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-medium text-gray-600 mb-2">Материалы не найдены</h3>
-                  <p className="text-gray-500">Материалы для этого предмета пока не добавлены</p>
+                  <h3 className="text-xl font-medium text-gray-600 mb-2">{t('materials.noMaterials')}</h3>
+                  <p className="text-gray-500">{t('dashboard.noMaterialsForSubject')}</p>
                 </div>
               ) : (
                 materials.map((material, index) => (

@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { User } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 import type { Student } from '../lib/supabase';
 
 interface StudentCardProps {
@@ -10,6 +11,8 @@ interface StudentCardProps {
 }
 
 export default function StudentCard({ student, onClick, index }: StudentCardProps) {
+  const { t } = useLanguage();
+  
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -27,7 +30,7 @@ export default function StudentCard({ student, onClick, index }: StudentCardProp
         <div className="flex-1">
           <h3 className="text-lg font-medium text-gray-900">{student.name}</h3>
           <p className="text-sm text-gray-500">
-            {student.password_hash ? 'Пароль установлен' : 'Требуется ключ'}
+            {student.password_hash ? t('auth.passwordSet') : t('auth.noPassword')}
           </p>
         </div>
       </div>

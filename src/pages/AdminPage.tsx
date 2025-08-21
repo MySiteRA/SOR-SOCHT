@@ -19,9 +19,10 @@ type ContentType = 'text' | 'image' | 'file' | 'link';
 
 interface AdminPageProps {
   onLogout: () => void;
+  onShowStudents: () => void;
 }
 
-export default function AdminPage({ onLogout }: AdminPageProps) {
+export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) {
   // ====== Основные состояния ======
   const [view, setView] = useState<AdminView>('main');
   const [classes, setClasses] = useState<Class[]>([]);
@@ -161,16 +162,18 @@ export default function AdminPage({ onLogout }: AdminPageProps) {
     if (!selectedStudent) return;
     try {
       const expiresAt = keyExpiration ? new Date(keyExpiration).toISOString() : undefined;
-      const newKey = await generateKey(selectedStudent.id, expiresAt);
-      setGeneratedKey(newKey);
+      
+      const keyValue = await generateKey(selectedStudent.id, expiresAt);
+      
+      setGeneratedKey(keyValue);
       setShowGenerateKeyModal(false);
       setShowKeyResultModal(true);
       setKeyExpiration('');
       const updatedKeys = await getStudentKeys(selectedStudent.id);
       setStudentKeys(updatedKeys);
-      setSuccess('Ключ успешно сгенерирован');
+      setSuccess(t('keys.generateSuccess'));
     } catch (err) {
-      setError('Ошибка генерации ключа');
+      setError(t('keys.generationError'));
     }
   };
 
@@ -475,6 +478,20 @@ setStudents(prevStudents =>
               >
                 <Users className="w-4 h-4" />
                 <span>Ученики</span>
+              </button>
+              <button
+                onClick={onShowStudents}
+                className="flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors flex-1 justify-center text-gray-600 hover:text-indigo-600"
+              >
+                <Users className="w-4 h-4" />
+                <span>Все</span>
+              </button>
+              <button
+                onClick={onShowStudents}
+                className="flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors text-gray-600 hover:text-indigo-600"
+              >
+                <Users className="w-4 h-4" />
+                <span>Все ученики</span>
               </button>
             </nav>
 

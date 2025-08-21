@@ -1,49 +1,101 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowLeft } from 'lucide-react';
-import ClassCard from '../components/ClassCard';
-import StudentCard from '../components/StudentCard';
+import { motion, AnimatePresence } from 'framer-motion';
+import { GraduationCap, User, Key, Lock, ArrowLeft, Eye, EyeOff, CheckCircle, Loader2, LogOut } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 import Header from '../components/Header';
-import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
-import StudentDashboard from './StudentDashboard';
+import Modal from '../components/Modal';
 import { 
   getClasses, 
   getStudentsByClass, 
   validateKey, 
   validatePassword, 
-  createPassword, 
-  getStudent // ✅ добавил импорт
+  createPassword,
+  getStudent
 } from '../lib/api';
+import { getStudent as getStudentService } from '../services/student';
 import type { Class, Student } from '../lib/supabase';
 
-type View = 'classes' | 'students' | 'dashboard' | 'admin-login';
+type Step = 'classes' | 'students' | 'auth';
+type AuthStep = 'key' | 'password' | 'create-password';
 
 interface HomePageProps {
   onShowAdminModal: () => void;
+  onStudentLogin: (student: Student, className: string) => void;
 }
 
-export default function HomePage({ onShowAdminModal }: HomePageProps) {
-  const [view, setView] = useState<View>('classes');
+export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageProps) {
+  const { t } = useLanguage();
+  
+  // Main state
+  const [step, setStep] = useState<Step>('classes');
   const [classes, setClasses] = useState<Class[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [authenticatedStudent, setAuthenticatedStudent] = useState<Student | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Модалки
-  const [showKeyModal, setShowKeyModal] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showCreatePasswordModal, setShowCreatePasswordModal] = useState(false);
-
-  // Поля ввода
-  const [keyInput, setKeyInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [newPassword, setNewPassword] = useState('');
+  // Auth state
+  const [authStep, setAuthStep] = useState<AuthStep>('key');
+  const [keyValue, setKeyValue] = useState('');
+  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [savedLogin, setSavedLogin] = useState<{studentId: string, expiresAt: number} | null>(null);
 
+  // Проверяем сохраненные данные входа при загрузке
+  useEffect(() => {
+    autoLoginWithSavedData();
+  }, []);
+
+  const autoLoginWithSavedData = async () => {
+    try {
+      const savedId = localStorage.getItem('studentId');
+      const savedTime = localStorage.getItem('createdAt');
+
+      if (!savedId || !savedTime) return;
+
+      const now = Date.now();
+      const diff = now - parseInt(savedTime, 10);
+
+      // 3 дня = 259200000 мс
+      if (diff > 259200000) {
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('createdAt');
+        localStorage.removeItem('studentDashboardData');
+        return;
+      }
+
+      const student = await getStudentService(savedId);
+      if (student) {
+        // Загружаем классы если они еще не загружены
+        let allClasses = classes;
+        if (allClasses.length === 0) {
+          allClasses = await getClasses();
+          setClasses(allClasses);
+        }
+        
+        const classData = allClasses.find(c => c.id === student.class_id);
+        
+        if (classData) {
+          setSavedLogin({ studentId: savedId, expiresAt: parseInt(savedTime, 10) + 259200000 });
+          // Перенаправляем в дашборд с задержкой
+          setTimeout(() => {
+            onStudentLogin(student, classData.name);
+          }, 500);
+        }
+      }
+    } catch (err) {
+      console.error('Auto login failed:', err);
+      localStorage.removeItem('studentId');
+      localStorage.removeItem('createdAt');
+      localStorage.removeItem('studentDashboardData');
+    }
+  };
   useEffect(() => {
     loadClasses();
   }, []);
@@ -51,10 +103,11 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
   const loadClasses = async () => {
     try {
       setLoading(true);
+      setError(null);
       const classData = await getClasses();
       setClasses(classData);
-    } catch {
-      setError('Ошибка загрузки классов');
+    } catch (err) {
+      setError(t('error.loadingClasses'));
     } finally {
       setLoading(false);
     }
@@ -63,307 +116,579 @@ export default function HomePage({ onShowAdminModal }: HomePageProps) {
   const loadStudents = async (classItem: Class) => {
     try {
       setLoading(true);
+      setError(null);
       const studentData = await getStudentsByClass(classItem.id);
       setStudents(studentData);
       setSelectedClass(classItem);
-      setView('students');
-    } catch {
-      setError('Ошибка загрузки учеников');
+      setStep('students');
+    } catch (err) {
+      setError(t('error.loadingStudents'));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStudentClick = (student: Student) => {
+  const selectStudent = (student: Student) => {
+    // Проверяем, есть ли сохраненный вход для этого ученика
+    if (savedLogin && savedLogin.studentId === student.id) {
+      handleSuccessfulAuth(student, true);
+      return;
+    }
+    
     setSelectedStudent(student);
-
+    // Определяем начальный шаг авторизации
     if (student.password_hash) {
-      setShowPasswordModal(true);
+      setAuthStep('password');
     } else {
-      setShowKeyModal(true);
+      setAuthStep('key');
     }
+    setStep('auth');
   };
 
-  const handleKeySubmit = async () => {
-    if (!keyInput.trim() || !selectedStudent) return;
+  const handleKeySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStudent) return;
 
     try {
-      const result = await validateKey(keyInput.trim(), selectedStudent.id);
-
-      if (result.valid && result.student) {
-        setShowKeyModal(false);
-        setKeyInput('');
-        setShowCreatePasswordModal(true);
-      } else {
-        setError('Неверный ключ или ключ не принадлежит этому ученику');
-      }
-    } catch {
-      setError('Ошибка проверки ключа');
-    }
-  };
-
-  const handlePasswordSubmit = async () => {
-    if (!passwordInput.trim() || !selectedStudent) return;
-
-    try {
-      const result = await validatePassword(selectedStudent.id, passwordInput.trim());
-
-      if (result.valid && result.student) {
-        setAuthenticatedStudent(result.student);
-        setView('dashboard');
-        setShowPasswordModal(false);
-        setPasswordInput('');
-        setError(null);
-      } else {
-        setError('Неверный пароль');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка проверки пароля');
-    }
-  };
-
-  const handleCreatePassword = async () => {
-    if (!newPassword.trim() || !confirmPassword.trim() || !selectedStudent) return;
-
-    if (newPassword !== confirmPassword) {
-      setError('Пароли не совпадают');
-      return;
-    }
-
-    if (newPassword.length < 4) {
-      setError('Пароль должен содержать минимум 4 символа');
-      return;
-    }
-
-    try {
-      await createPassword(selectedStudent.id, newPassword);
-
-      // Ждём, чтобы Supabase точно сохранил изменения
-      await new Promise(res => setTimeout(res, 500));
-
-      // Берём свежие данные студента
-      const updatedStudent = await getStudent(selectedStudent.id);
-      if (!updatedStudent) {
-        setError('Ошибка получения данных ученика');
-        return;
-      }
-
-      // Сохраняем как авторизованного и переходим в меню
-      setAuthenticatedStudent(updatedStudent);
-      setView('dashboard');
-      setShowCreatePasswordModal(false);
-      setNewPassword('');
-      setConfirmPassword('');
+      setIsProcessing(true);
       setError(null);
+      
+      const result = await validateKey(keyValue.toUpperCase(), selectedStudent.id);
+      
+      if (result.valid) {
+        setAuthStep('create-password');
+      } else {
+        setError(t('auth.invalidOrUsedKey'));
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка создания пароля');
+      setError(t('error.keyValidation'));
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const handleBack = () => {
-    if (view === 'dashboard') {
-      setView('classes');
-      setAuthenticatedStudent(null);
-      setSelectedClass(null);
-      setSelectedStudent(null);
-      setStudents([]);
-    } else if (view === 'students') {
-      setView('classes');
-      setSelectedClass(null);
-      setStudents([]);
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStudent) return;
+
+    try {
+      setIsProcessing(true);
+      setError(null);
+      
+      const result = await validatePassword(selectedStudent.id, password);
+      
+      if (result.valid && result.student) {
+        // Показываем сообщение об успешном входе
+        setSuccessMessage(t('auth.successfulLogin'));
+        setTimeout(() => {
+          handleSuccessfulAuth(result.student, false);
+        }, 2000);
+      } else {
+        setError(t('auth.invalidPassword'));
+      }
+    } catch (err: any) {
+      if (err.message === 'Пароль не установлен') {
+        setError(t('auth.passwordNotSet'));
+      } else {
+        setError(t('error.passwordValidation'));
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCreatePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStudent) return;
+
+    if (password.length < 4) {
+      setError(t('auth.passwordTooShort'));
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError(t('auth.passwordMismatch'));
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      setError(null);
+      
+      await createPassword(selectedStudent.id, password);
+      
+      // Показываем сообщение о создании пароля
+      setSuccessMessage(t('auth.passwordCreated'));
+      setTimeout(() => {
+        handleSuccessfulAuth(selectedStudent, false);
+      }, 2000);
+    } catch (err: any) {
+      setError(err.message || t('error.passwordCreation'));
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSuccessfulAuth = (student: Student, isAutoLogin: boolean = false) => {
+    if (!isAutoLogin) {
+      // Сохраняем данные входа на 3 дня
+      localStorage.setItem('studentId', student.id);
+      localStorage.setItem('createdAt', Date.now().toString());
+      setSavedLogin({ studentId: student.id, expiresAt: Date.now() + 259200000 });
+    }
+    
+    // Получаем название класса
+    const className = selectedClass?.name || classes.find(c => c.id === student.class_id)?.name || '';
+    
+    // Перенаправляем в личный кабинет или на URL ученика
+    if (student.url) {
+      // Если есть URL, перенаправляем туда
+      setTimeout(() => {
+        window.location.href = student.url!;
+      }, isAutoLogin ? 500 : 1000);
+    } else {
+      // Перенаправляем в личный кабинет
+      setTimeout(() => {
+        onStudentLogin(student, className);
+      }, isAutoLogin ? 500 : 1000);
     }
   };
 
   const handleLogout = () => {
-    setView('classes');
-    setAuthenticatedStudent(null);
+    localStorage.removeItem('studentId');
+    localStorage.removeItem('createdAt');
+    localStorage.removeItem('studentDashboardData');
+    setSavedLogin(null);
+    setStep('classes');
     setSelectedClass(null);
     setSelectedStudent(null);
     setStudents([]);
-    closeAllModals();
-  };
-
-  const closeAllModals = () => {
-    setShowKeyModal(false);
-    setShowPasswordModal(false);
-    setShowCreatePasswordModal(false);
-    setKeyInput('');
-    setPasswordInput('');
-    setNewPassword('');
+    setKeyValue('');
+    setPassword('');
     setConfirmPassword('');
-    setSelectedStudent(null);
     setError(null);
+    setSuccessMessage(null);
   };
 
-  if (loading) {
+  const handleBack = () => {
+    setSuccessMessage(t('common.returnedToPrevious'));
+    setTimeout(() => setSuccessMessage(null), 2000);
+    
+    setSuccessMessage(t('common.returnedToPrevious'));
+    setTimeout(() => setSuccessMessage(null), 2000);
+    
+    if (step === 'auth') {
+      setStep('students');
+      setSelectedStudent(null);
+      setKeyValue('');
+      setPassword('');
+      setConfirmPassword('');
+      setError(null);
+    } else if (step === 'students') {
+      setStep('classes');
+      setSelectedClass(null);
+      setStudents([]);
+    }
+  };
+
+  const formatKeyInput = (value: string) => {
+    const clean = value.replace(/[^A-Z0-9]/g, '');
+    const formatted = clean.match(/.{1,4}/g)?.join('-') || clean;
+    return formatted.slice(0, 14);
+  };
+
+  // Если есть активная сессия и происходит автоматический вход, показываем загрузку
+  if (savedLogin && step === 'classes' && !loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 flex items-center justify-center">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="text-center bg-white p-8 rounded-2xl shadow-xl"
+        >
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <User className="w-8 h-8 text-green-600" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Автоматический вход</h2>
+          <p className="text-gray-600 mb-4">Перенаправление в личный кабинет...</p>
+          <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        </motion.div>
+      </div>
+    );
+  }
+  if (loading && step === 'classes') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 flex items-center justify-center">
         <LoadingSpinner />
       </div>
     );
   }
 
-  if (view === 'dashboard' && authenticatedStudent && selectedClass) {
-    return (
-      <StudentDashboard
-        student={authenticatedStudent}
-        className={selectedClass.name}
-        onLogout={handleLogout}
-      />
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-8">
-
-        {/* Заголовок */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
-        >
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Лучший сайт для Сор и Соч
-          </h1>
-          <p className="text-xl text-gray-600">
-            {view === 'classes' ? 'Выберите класс' : `Выберите ученика из ${selectedClass?.name}`}
-          </p>
-        </motion.div>
-
-        {view === 'classes' && <Header onShowAdminModal={onShowAdminModal} />}
-
-        {view === 'students' && (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100">
+      <Header 
+        onShowAdminModal={onShowAdminModal} 
+        showBackButton={step !== 'classes'} 
+        onBack={handleBack}
+      />
+      
+      <div className="container mx-auto px-4 py-12">
+        {/* Logout Button */}
+        {savedLogin && (
           <motion.button
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            onClick={handleBack}
-            className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 mb-6 font-medium"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={handleLogout}
+            className="fixed top-4 right-4 z-50 flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-700 transition-colors shadow-lg"
           >
-            <ArrowLeft className="w-5 h-5" />
-            <span>Назад к классам</span>
+            <LogOut className="w-4 h-4" />
+            <span>{t('auth.logout')}</span>
           </motion.button>
         )}
 
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6"
-          >
-            {error}
-            <button
-              onClick={() => setError(null)}
-              className="ml-2 text-red-500 hover:text-red-700"
+        {/* Messages */}
+        <AnimatePresence>
+          {successMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-green-100 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 max-w-2xl mx-auto text-center"
             >
-              ✕
-            </button>
+              {successMessage}
+            </motion.div>
+          )}
+          
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 max-w-2xl mx-auto text-center"
+            >
+              {error}
+              <button
+                onClick={() => setError(null)}
+                className="ml-2 text-red-500 hover:text-red-700"
+              >
+                ✕
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Classes Selection */}
+        {step === 'classes' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-6xl mx-auto"
+          >
+            <div className="text-center mb-12">
+              <div className="flex items-center justify-center mb-6">
+                <GraduationCap className="w-16 h-16 text-indigo-600 mr-4" />
+                <h1 className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                  {t('home.title')}
+                </h1>
+              </div>
+              <p className="text-xl text-gray-600">{t('home.selectClass')}</p>
+            </div>
+
+            {error ? (
+              <div className="text-center py-12">
+                <p className="text-red-600 mb-4">{error}</p>
+                <button
+                  onClick={loadClasses}
+                  className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
+                >
+                  {t('common.tryAgain')}
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {classes.map((classItem, index) => (
+                  <motion.div
+                    key={classItem.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    whileHover={{ scale: 1.02, y: -4 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => loadStudents(classItem)}
+                    className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 hover:border-indigo-300 p-6"
+                  >
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+                        <GraduationCap className="w-8 h-8 text-white" />
+                      </div>
+                      <h3 className="text-2xl font-bold text-gray-800">{classItem.name}</h3>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
 
-        {view === 'classes' && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-            {classes.map((classItem, index) => (
-              <ClassCard
-                key={classItem.id}
-                classItem={classItem}
-                onClick={() => loadStudents(classItem)}
-                index={index}
-              />
-            ))}
-          </div>
+        {/* Students Selection */}
+        {step === 'students' && selectedClass && (
+          <motion.div
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -100 }}
+            className="max-w-4xl mx-auto"
+          >
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                {t('home.selectStudent')} {selectedClass.name}
+              </h2>
+            </div>
+
+            {loading ? (
+              <LoadingSpinner />
+            ) : (
+              <div className="space-y-3">
+                {students.map((student, index) => (
+                  <motion.div
+                    key={student.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    whileHover={{ x: 8 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => selectStudent(student)}
+                    className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 hover:border-indigo-300 p-6"
+                  >
+                    <div className="flex items-center">
+                      <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mr-4">
+                        <User className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900">{student.name}</h3>
+                        <p className="text-sm text-gray-500">
+                          {savedLogin && savedLogin.studentId === student.id 
+                            ? t('auth.quickLogin') 
+                            : student.password_hash 
+                              ? t('auth.passwordSet') 
+                              : t('auth.noPassword')
+                          }
+                        </p>
+                      </div>
+                      <div className="w-6 h-6 border-2 border-gray-300 rounded-full group-hover:border-indigo-500 transition-colors" />
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </motion.div>
         )}
 
-        {view === 'students' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {students.map((student, index) => (
-              <StudentCard
-                key={student.id}
-                student={student}
-                onClick={() => handleStudentClick(student)}
-                index={index}
-              />
-            ))}
-          </div>
+        {/* Authentication */}
+        {step === 'auth' && selectedStudent && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-md mx-auto"
+          >
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-indigo-600 font-bold text-lg">
+                    {selectedStudent.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                  </span>
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedStudent.name}</h2>
+                <p className="text-gray-600">
+                  {authStep === 'key' && t('auth.enterKey')}
+                  {authStep === 'password' && t('auth.enterPassword')}
+                  {authStep === 'create-password' && t('auth.createPassword')}
+                </p>
+              </div>
+
+              <AnimatePresence mode="wait">
+                {/* Key Input */}
+                {authStep === 'key' && (
+                  <motion.form
+                    key="key-form"
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: 20, opacity: 0 }}
+                    onSubmit={handleKeySubmit}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        {t('auth.enterKey')}
+                      </label>
+                      <div className="relative">
+                        <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                          type="text"
+                          value={keyValue}
+                          onChange={(e) => setKeyValue(formatKeyInput(e.target.value.toUpperCase()))}
+                          placeholder={t('auth.keyPlaceholder')}
+                          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-center tracking-wider"
+                          maxLength={14}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isProcessing || keyValue.length < 14}
+                      className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isProcessing ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : t('auth.continue')}
+                    </button>
+                  </motion.form>
+                )}
+
+                {/* Password Input */}
+                {authStep === 'password' && (
+                  <motion.form
+                    key="password-form"
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: 20, opacity: 0 }}
+                    onSubmit={handlePasswordSubmit}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        {t('auth.enterPassword')}
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder={t('auth.passwordPlaceholder')}
+                          className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+                        >
+                          {showPassword ? (
+                            <EyeOff className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <Eye className="w-4 h-4 text-gray-400" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <button
+                        type="submit"
+                        disabled={isProcessing || !password}
+                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isProcessing ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : t('auth.login')}
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setAuthStep('key')}
+                        className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+                      >
+                        {t('auth.enterKey')}
+                      </button>
+                    </div>
+                  </motion.form>
+                )}
+
+                {/* Create Password */}
+                {authStep === 'create-password' && (
+                  <motion.form
+                    key="create-password-form"
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: 20, opacity: 0 }}
+                    onSubmit={handleCreatePasswordSubmit}
+                    className="space-y-4"
+                  >
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm mb-4">
+                      <div className="flex items-center">
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        {t('auth.keyVerified')}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        {t('auth.newPasswordPlaceholder')}
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder={t('auth.newPasswordPlaceholder')}
+                          className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          required
+                          minLength={4}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+                        >
+                          {showPassword ? (
+                            <EyeOff className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <Eye className="w-4 h-4 text-gray-400" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        {t('auth.confirmPasswordPlaceholder')}
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder={t('auth.confirmPasswordPlaceholder')}
+                          className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <Eye className="w-4 h-4 text-gray-400" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isProcessing || !password || !confirmPassword}
+                      className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isProcessing ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : t('auth.createPasswordButton')}
+                    </button>
+                  </motion.form>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
         )}
-
-        {/* Модалка ключа */}
-        <Modal isOpen={showKeyModal} onClose={closeAllModals} title="Введите ключ">
-          <div className="space-y-4">
-            <p className="text-gray-600">
-              Введите ключ доступа для ученика <strong>{selectedStudent?.name}</strong>
-            </p>
-            <input
-              type="text"
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="Ключ доступа"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              onKeyPress={(e) => e.key === 'Enter' && handleKeySubmit()}
-            />
-            <button
-              onClick={handleKeySubmit}
-              disabled={!keyInput.trim()}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-            >
-              Войти
-            </button>
-          </div>
-        </Modal>
-
-        {/* Модалка пароля */}
-        <Modal isOpen={showPasswordModal} onClose={closeAllModals} title="Введите пароль">
-          <div className="space-y-4">
-            <p className="text-gray-600">
-              Введите пароль для ученика <strong>{selectedStudent?.name}</strong>
-            </p>
-            <input
-              type="password"
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              placeholder="Пароль"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              onKeyPress={(e) => e.key === 'Enter' && handlePasswordSubmit()}
-            />
-            <button
-              onClick={handlePasswordSubmit}
-              disabled={!passwordInput.trim()}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-            >
-              Войти
-            </button>
-          </div>
-        </Modal>
-
-        {/* Модалка создания пароля */}
-        <Modal isOpen={showCreatePasswordModal} onClose={closeAllModals} title="Создание пароля">
-          <div className="space-y-4">
-            <p className="text-gray-600">
-              Создайте пароль для ученика <strong>{selectedStudent?.name}</strong>
-            </p>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Новый пароль"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Подтвердите пароль"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <button
-              onClick={handleCreatePassword}
-              disabled={!newPassword.trim() || !confirmPassword.trim()}
-              className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-            >
-              Создать пароль
-            </button>
-          </div>
-        </Modal>
       </div>
     </div>
   );

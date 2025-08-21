@@ -1,20 +1,32 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { LanguageProvider } from './contexts/LanguageContext';
 import HomePage from './pages/HomePage';
 import AdminPage from './pages/AdminPage';
+import AdminStudentsPage from './pages/AdminStudentsPage';
+import StudentDashboardPage from './pages/StudentDashboardPage';
 import Modal from './components/Modal';
 import { validateAdminCredentials } from './lib/api';
 import { Lock } from 'lucide-react';
+import { useLanguage } from './contexts/LanguageContext';
 
 function AppContent() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
     return localStorage.getItem('adminLoggedIn') === 'true';
   });
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [showStudentsPage, setShowStudentsPage] = useState(false);
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState<string | null>(null);
+
+  // Состояние для студенческого дашборда
+  const [studentData, setStudentData] = useState<{student: any, className: string} | null>(() => {
+    const saved = localStorage.getItem('studentDashboardData');
+    return saved ? JSON.parse(saved) : null;
+  });
 
   const handleAdminLoginSuccess = () => {
     setIsAdminLoggedIn(true);
@@ -32,13 +44,19 @@ function AppContent() {
     navigate('/');
   };
 
+  const handleStudentLogin = (student: any, className: string) => {
+    const dashboardData = { student, className };
+    setStudentData(dashboardData);
+    localStorage.setItem('studentDashboardData', JSON.stringify(dashboardData));
+    navigate('/student-dashboard');
+  };
   const handleAdminSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (validateAdminCredentials(adminUsername, adminPassword)) {
       handleAdminLoginSuccess();
     } else {
-      setAdminError('Неверные учетные данные');
+      setAdminError(t('admin.invalidCredentials'));
     }
   };
 
@@ -57,14 +75,35 @@ function AppContent() {
           element={
             <HomePage 
               onShowAdminModal={() => setShowAdminModal(true)} 
+              onStudentLogin={handleStudentLogin}
             />
+          } 
+        />
+        <Route 
+          path="/student-dashboard" 
+          element={
+            studentData ? (
+              <StudentDashboardPage 
+                student={studentData.student} 
+                className={studentData.className}
+              />
+            ) : (
+              <Navigate to="/" replace />
+            )
           } 
         />
         <Route 
           path="/admin" 
           element={
             isAdminLoggedIn ? (
-              <AdminPage onLogout={handleAdminLogout} />
+              showStudentsPage ? (
+                <AdminStudentsPage onBack={() => setShowStudentsPage(false)} />
+              ) : (
+                <AdminPage 
+                  onLogout={handleAdminLogout} 
+                  onShowStudents={() => setShowStudentsPage(true)}
+                />
+              )
             ) : (
               <Navigate to="/" replace />
             )
@@ -77,14 +116,14 @@ function AppContent() {
       <Modal
         isOpen={showAdminModal}
         onClose={closeAdminModal}
-        title="Вход для администратора"
+        title={t('admin.login')}
       >
         <div className="space-y-6">
           <div className="text-center">
             <div className="bg-gradient-to-r from-indigo-500 to-purple-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <Lock className="w-8 h-8 text-white" />
             </div>
-            <p className="text-gray-600">Введите учетные данные администратора</p>
+            <p className="text-gray-600">{t('admin.login')}</p>
           </div>
 
           {adminError && (
@@ -96,7 +135,7 @@ function AppContent() {
           <form onSubmit={handleAdminSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Логин
+                {t('admin.username')}
               </label>
               <input
                 type="text"
@@ -109,7 +148,7 @@ function AppContent() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Пароль
+                {t('admin.password')}
               </label>
               <input
                 type="password"
@@ -124,7 +163,7 @@ function AppContent() {
               type="submit"
               className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-2 px-4 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 font-medium"
             >
-              Войти
+              {t('auth.login')}
             </button>
           </form>
         </div>
@@ -135,9 +174,11 @@ function AppContent() {
 
 function App() {
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <LanguageProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </LanguageProvider>
   );
 }
 
