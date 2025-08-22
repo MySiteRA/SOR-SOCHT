@@ -12,7 +12,8 @@ import {
 } from '../components/ui/dropdown-menu';
 import { 
   getSubjects,
-  getMaterialsByType
+  getMaterialsByGradeAndType,
+  extractGradeFromClassName
 } from '../lib/api';
 import type { Student, Subject, Material } from '../lib/supabase';
 
@@ -55,7 +56,9 @@ export default function StudentDashboardPage({ student, className }: StudentDash
   const loadSubjectMaterials = async (subject: Subject, category: 'SOR' | 'SOCH') => {
     try {
       setLoading(true);
-      const materialData = await getMaterialsByType(subject.id, category);
+      // Извлекаем grade из названия класса студента
+      const grade = extractGradeFromClassName(className);
+      const materialData = await getMaterialsByGradeAndType(grade, category);
       setMaterials(materialData);
       setSelectedSubject(subject);
       setCurrentCategory(category);

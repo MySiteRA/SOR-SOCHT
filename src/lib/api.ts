@@ -225,28 +225,35 @@ export async function deleteSubject(id: string): Promise<void> {
 }
 
 // ==================== Материалы ====================
-export async function getMaterialsBySubject(subjectId: string): Promise<Material[]> {
-  const { data, error } = await supabase.from('materials').select(`*, subject:subjects(*)`).eq('subject_id', subjectId).order('created_at', { ascending: false });
+export async function getMaterialsByGrade(grade: number): Promise<Material[]> {
+  const { data, error } = await supabase.from('materials').select(`*, subject:subjects(*)`).eq('grade', grade).order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
 }
 
-export async function getMaterialsByType(subjectId: string, type: 'SOR' | 'SOCH'): Promise<Material[]> {
-  const { data, error } = await supabase.from('materials').select(`*, subject:subjects(*)`).eq('subject_id', subjectId).eq('type', type).order('created_at', { ascending: false });
+export async function getMaterialsByGradeAndType(grade: number, type: 'SOR' | 'SOCH'): Promise<Material[]> {
+  const { data, error } = await supabase.from('materials').select(`*, subject:subjects(*)`).eq('grade', grade).eq('type', type).order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
 }
 
-export async function createMaterial(subjectId: string, title: string, type: 'SOR' | 'SOCH', contentType: 'text' | 'image' | 'file' | 'link', contentValue: string): Promise<Material> {
+export async function getMaterialsBySubjectAndGrade(subjectId: string, grade: number, type: 'SOR' | 'SOCH'): Promise<Material[]> {
+  const { data, error } = await supabase.from('materials').select(`*, subject:subjects(*)`).eq('subject_id', subjectId).eq('grade', grade).eq('type', type).order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createMaterial(subjectId: string, title: string, type: 'SOR' | 'SOCH', contentType: 'text' | 'image' | 'file' | 'link', contentValue: string, grade: number): Promise<Material> {
   const { data, error } = await supabase.from('materials').insert({
     subject_id: subjectId,
     title,
     type,
     content_type: contentType,
-    content_value: contentValue
+    content_value: contentValue,
+    grade
   }).select(`*, subject:subjects(*)`).single();
   if (error) throw error;
-  await logAction('MATERIAL_CREATED', `Material ${title} created for subject ${subjectId}`);
+  await logAction('MATERIAL_CREATED', `Material ${title} created for subject ${subjectId}, grade ${grade}`);
   return data;
 }
 
@@ -265,6 +272,12 @@ export async function updateMaterial(id: string, title: string, contentType: 'te
   if (error) throw error;
   await logAction('MATERIAL_UPDATED', `Material ${id} updated`);
   return data;
+}
+
+// Вспомогательная функция для получения grade из названия класса
+export function extractGradeFromClassName(className: string): number {
+  const grade = parseInt(className.split('-')[0]);
+  return isNaN(grade) ? 1 : Math.max(1, Math.min(11, grade));
 }
 
 // ==================== Файлы ====================

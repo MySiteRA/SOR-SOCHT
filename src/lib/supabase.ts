@@ -82,5 +82,6 @@ export interface Material {
   content_type: 'text' | 'image' | 'file' | 'link';
   content_value: string;
   created_at: string;
+  grade: number;
   subject?: Subject;
 }

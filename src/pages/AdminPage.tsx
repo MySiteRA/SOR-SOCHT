@@ -8,13 +8,13 @@ import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import {
   getClasses, getStudentsByClass, getStudent, getStudentKeys,
-  getSubjects, getMaterialsByType, generateKey,
+  getSubjects, getMaterialsBySubjectAndGrade, generateKey,
   revokeKey, updateStudentUrl, updateKeyExpiration,
-  createMaterial, deleteMaterial, resetStudentPassword
+  createMaterial, deleteMaterial, resetStudentPassword, extractGradeFromClassName
 } from '../lib/api';
 import type { Class, Student, Key as KeyType, Subject, Material } from '../lib/supabase';
 
-type AdminView = 'main' | 'classes' | 'students' | 'student-profile' | 'sor' | 'soch' | 'materials';
+type AdminView = 'main' | 'classes' | 'students' | 'student-profile' | 'sor' | 'soch' | 'subjects' | 'materials';
 type ContentType = 'text' | 'image' | 'file' | 'link';
 
 interface AdminPageProps {
@@ -32,6 +32,7 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
+  const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
   const [currentSection, setCurrentSection] = useState<'SOR' | 'SOCH'>('SOR');
   const [studentKeys, setStudentKeys] = useState<KeyType[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,7 +66,7 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
 
   // ====== Загрузка данных ======
   useEffect(() => {
-    if (view === 'classes' || view === 'sor' || view === 'soch' || view === 'students') {
+    if (view === 'classes' || view === 'sor' || view === 'soch' || view === 'students' || view === 'subjects') {
       loadClasses();
     }
   }, [view]);
@@ -120,13 +121,13 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
     }
   };
 
-  const loadSubjects = async (classItem: Class) => {
+  const loadSubjects = async (grade: number) => {
     try {
       setLoading(true);
       const subjectData = await getSubjects();
       setSubjects(subjectData);
-      setSelectedClass(classItem);
-      // Не меняем view здесь, остаемся в текущем разделе
+      setSelectedGrade(grade);
+      setView('subjects');
     } catch (err) {
       setError('Ошибка загрузки предметов');
     } finally {
@@ -134,10 +135,10 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
     }
   };
 
-  const loadMaterials = async (subject: Subject) => {
+  const loadMaterials = async (subject: Subject, grade: number) => {
     try {
       setLoading(true);
-      const materialData = await getMaterialsByType(subject.id, currentSection);
+      const materialData = await getMaterialsBySubjectAndGrade(subject.id, grade, currentSection);
       setMaterials(materialData);
       setSelectedSubject(subject);
       setView('materials');
@@ -152,7 +153,7 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
   const handleSectionChange = (section: 'SOR' | 'SOCH') => {
     setCurrentSection(section);
     setView(section.toLowerCase() as 'sor' | 'soch');
-    setSelectedClass(null);
+    setSelectedGrade(null);
     setSelectedSubject(null);
     setMaterials([]);
     setSubjects([]);
@@ -218,7 +219,7 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
   };
 
   const handleAddMaterial = async () => {
-    if (!materialTitle.trim() || !selectedSubject || selectedContentTypes.length === 0) return;
+    if (!materialTitle.trim() || !selectedSubject || !selectedGrade || selectedContentTypes.length === 0) return;
 
     // Проверяем, что для всех выбранных типов есть контент
     const hasEmptyContent = selectedContentTypes.some(type => !materialContents[type].trim());
@@ -235,7 +236,8 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
           `${materialTitle.trim()}${selectedContentTypes.length > 1 ? ` (${contentType})` : ''}`,
           currentSection,
           contentType,
-          materialContents[contentType].trim()
+          materialContents[contentType].trim(),
+          selectedGrade
         );
       }
 
@@ -244,7 +246,7 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
       resetMaterialForm();
       
       // Обновляем список материалов
-      const updatedMaterials = await getMaterialsByType(selectedSubject.id, currentSection);
+      const updatedMaterials = await getMaterialsBySubjectAndGrade(selectedSubject.id, selectedGrade, currentSection);
       setMaterials(updatedMaterials);
     } catch (err) {
       setError('Ошибка добавления материала');
@@ -259,7 +261,7 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
       setSuccess('Материал удален');
       
       // Обновляем список материалов
-      const updatedMaterials = await getMaterialsByType(selectedSubject!.id, currentSection);
+      const updatedMaterials = await getMaterialsBySubjectAndGrade(selectedSubject!.id, selectedGrade!, currentSection);
       setMaterials(updatedMaterials);
     } catch (err) {
       setError('Ошибка удаления материала');
@@ -349,17 +351,16 @@ setStudents(prevStudents =>
 
   const handleBack = () => {
     if (view === 'materials') {
-      setView(currentSection.toLowerCase() as 'sor' | 'soch');
+      setView('subjects');
       setSelectedSubject(null);
       setMaterials([]);
+    } else if (view === 'subjects') {
+      setView(currentSection.toLowerCase() as 'sor' | 'soch');
+      setSelectedGrade(null);
+      setSubjects([]);
     } else if (view === 'sor' || view === 'soch') {
-      if (selectedClass) {
-        setView(currentSection.toLowerCase() as 'sor' | 'soch');
-        setSelectedClass(null);
-        setSubjects([]);
-      } else {
-        setView('main');
-      }
+      setView('main');
+      setSelectedGrade(null);
     } else if (view === 'student-profile') {
       setView('students');
       setSelectedStudent(null);
@@ -659,13 +660,44 @@ setStudents(prevStudents =>
         )}
 
         {/* Classes Grid */}
-        {(view === 'sor' || view === 'soch' || view === 'students') && !selectedClass && (
+        {(view === 'sor' || view === 'soch') && !selectedGrade && (
           <div>
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-2">
                 {view === 'sor' && 'СОР - Выберите класс'}
                 {view === 'soch' && 'СОЧ - Выберите класс'}
-                {view === 'students' && 'Ученики - Выберите класс'}
+              </h2>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+              {Array.from(new Set(classes.map(cls => extractGradeFromClassName(cls.name))))
+                .sort((a, b) => b - a)
+                .map((grade, index) => (
+                <motion.div
+                  key={grade}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => loadSubjects(grade)}
+                  className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 p-6"
+                >
+                  <div className="text-center">
+                    <h3 className="text-2xl font-bold text-gray-800">{grade} класс</h3>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Students Classes Grid */}
+        {view === 'students' && !selectedClass && (
+          <div>
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                Ученики - Выберите класс
               </h2>
             </div>
             
@@ -678,7 +710,7 @@ setStudents(prevStudents =>
                   transition={{ delay: index * 0.05 }}
                   whileHover={{ scale: 1.02, y: -2 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => view === 'students' ? loadStudents(classItem) : loadSubjects(classItem)}
+                  onClick={() => loadStudents(classItem)}
                   className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 p-6"
                 >
                   <div className="text-center">
@@ -691,11 +723,11 @@ setStudents(prevStudents =>
         )}
 
         {/* Subjects Grid */}
-        {(view === 'sor' || view === 'soch') && selectedClass && !selectedSubject && (
+        {view === 'subjects' && selectedGrade && !selectedSubject && (
           <div>
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                {currentSection} - {selectedClass.name} - Выберите предмет
+                {currentSection} - {selectedGrade} класс - Выберите предмет
               </h2>
             </div>
             
@@ -708,7 +740,7 @@ setStudents(prevStudents =>
                   transition={{ delay: index * 0.05 }}
                   whileHover={{ scale: 1.01, y: -2 }}
                   whileTap={{ scale: 0.99 }}
-                  onClick={() => loadMaterials(subject)}
+                  onClick={() => loadMaterials(subject, selectedGrade)}
                   className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 p-4"
                 >
                   <div className="flex items-center space-x-3">
@@ -726,11 +758,11 @@ setStudents(prevStudents =>
         )}
 
         {/* Materials View */}
-        {view === 'materials' && selectedSubject && (
+        {view === 'materials' && selectedSubject && selectedGrade && (
           <div>
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                {currentSection} - {selectedClass?.name} - {selectedSubject.name}
+                {currentSection} - {selectedGrade} класс - {selectedSubject.name}
               </h2>
             </div>
 
@@ -1084,7 +1116,7 @@ setStudents(prevStudents =>
         <Modal
           isOpen={showAddMaterialModal}
           onClose={closeAllModals}
-          title="Добавить материал"
+          title={`Добавить материал - ${selectedGrade} класс`}
         >
           <div className="space-y-4">
             <div>
@@ -1161,6 +1193,7 @@ setStudents(prevStudents =>
               onClick={handleAddMaterial}
               disabled={
                 !materialTitle.trim() || 
+                !selectedGrade ||
                 selectedContentTypes.length === 0 ||
                 selectedContentTypes.some(type => !materialContents[type].trim())
               }
