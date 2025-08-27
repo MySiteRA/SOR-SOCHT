@@ -53,7 +53,7 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
       setLoading(true);
       // Извлекаем grade из названия класса студента
       const grade = extractGradeFromClassName(className);
-      const materialData = await getMaterialsByGradeAndType(grade, category);
+      const materialData = await getMaterialsBySubjectAndGrade(subject.id, grade, category);
       setMaterials(materialData);
       setSelectedSubject(subject);
       setCurrentCategory(category);

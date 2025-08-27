@@ -231,14 +231,26 @@ export async function getMaterialsByGrade(grade: number): Promise<Material[]> {
   return data || [];
 }
 
-export async function getMaterialsByGradeAndType(grade: number, type: 'SOR' | 'SOCH'): Promise<Material[]> {
-  const { data, error } = await supabase.from('materials').select(`*, subject:subjects(*)`).eq('grade', grade).eq('type', type).order('created_at', { ascending: false });
+export async function getMaterialsByGradeAndType(grade: number, type: 'SOR' | 'SOCH', subjectId?: string): Promise<Material[]> {
+  let query = supabase.from('materials').select(`*, subject:subjects(*)`).eq('grade', grade).eq('type', type);
+  
+  if (subjectId) {
+    query = query.eq('subject_id', subjectId);
+  }
+  
+  const { data, error } = await query.order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
 }
 
 export async function getMaterialsBySubjectAndGrade(subjectId: string, grade: number, type: 'SOR' | 'SOCH'): Promise<Material[]> {
-  const { data, error } = await supabase.from('materials').select(`*, subject:subjects(*)`).eq('subject_id', subjectId).eq('grade', grade).eq('type', type).order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('materials')
+    .select(`*, subject:subjects(*)`)
+    .eq('subject_id', subjectId)
+    .eq('grade', grade)
+    .eq('type', type)
+    .order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
 }

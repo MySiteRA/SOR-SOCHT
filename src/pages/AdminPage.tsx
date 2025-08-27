@@ -172,9 +172,9 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
       setKeyExpiration('');
       const updatedKeys = await getStudentKeys(selectedStudent.id);
       setStudentKeys(updatedKeys);
-      setSuccess(t('keys.generateSuccess'));
+      setSuccess('Ключ успешно сгенерирован');
     } catch (err) {
-      setError(t('keys.generationError'));
+      setError('Ошибка генерации ключа');
     }
   };
 
@@ -219,7 +219,10 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
   };
 
   const handleAddMaterial = async () => {
-    if (!materialTitle.trim() || !selectedSubject || !selectedGrade || selectedContentTypes.length === 0) return;
+    if (!materialTitle.trim() || !selectedSubject || !selectedGrade || selectedContentTypes.length === 0) {
+      setError('Заполните все обязательные поля');
+      return;
+    }
 
     // Проверяем, что для всех выбранных типов есть контент
     const hasEmptyContent = selectedContentTypes.some(type => !materialContents[type].trim());
@@ -1116,7 +1119,7 @@ setStudents(prevStudents =>
         <Modal
           isOpen={showAddMaterialModal}
           onClose={closeAllModals}
-          title={`Добавить материал - ${selectedGrade} класс`}
+          title={`Добавить материал - ${currentSection} - ${selectedGrade} класс - ${selectedSubject?.name}`}
         >
           <div className="space-y-4">
             <div>
@@ -1130,6 +1133,17 @@ setStudents(prevStudents =>
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Введите название"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Информация
+              </label>
+              <div className="bg-gray-50 p-3 rounded-lg text-sm text-gray-600">
+                <p><strong>Предмет:</strong> {selectedSubject?.name}</p>
+                <p><strong>Класс:</strong> {selectedGrade}</p>
+                <p><strong>Тип:</strong> {currentSection}</p>
+              </div>
             </div>
 
             <div>

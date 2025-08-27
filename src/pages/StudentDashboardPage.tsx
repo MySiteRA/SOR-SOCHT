@@ -4,17 +4,14 @@ import { ArrowLeft, BookOpen, FileText, Users, MoreVertical, LogOut, Trash2 } fr
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { supabase } from '../lib/supabase';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
-import { 
-  getSubjects,
-  getMaterialsByGradeAndType,
-  extractGradeFromClassName
-} from '../lib/api';
+import { extractGradeFromClassName } from '../lib/api';
 import type { Student, Subject, Material } from '../lib/supabase';
 
 type DashboardView = 'main' | 'sor' | 'soch' | 'materials';
@@ -31,21 +28,33 @@ export default function StudentDashboardPage({ student, className }: StudentDash
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
-  const [currentCategory, setCurrentCategory] = useState<'SOR' | 'SOCH'>('SOR');
+  const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
+  const [currentType, setCurrentType] = useState<'SOR' | 'SOCH'>('SOR');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (view === 'sor' || view === 'soch') {
       loadSubjects();
+      // Устанавливаем currentType в зависимости от активной вкладки
+      setCurrentType(view === 'sor' ? 'SOR' : 'SOCH');
+      // Извлекаем grade из названия класса студента
+      const grade = extractGradeFromClassName(className);
+      setSelectedGrade(grade);
     }
   }, [view]);
 
   const loadSubjects = async () => {
     try {
       setLoading(true);
-      const subjectData = await getSubjects();
-      setSubjects(subjectData);
+      const { data: subjects, error } = await supabase
+        .from("subjects")
+        .select("*")
+        .order('name');
+      
+      if (error) throw error;
+      
+      setSubjects(subjects || []);
     } catch (err) {
       setError('Ошибка загрузки предметов');
     } finally {
@@ -53,15 +62,27 @@ export default function StudentDashboardPage({ student, className }: StudentDash
     }
   };
 
-  const loadSubjectMaterials = async (subject: Subject, category: 'SOR' | 'SOCH') => {
+  const loadSubjectMaterials = async (subject: Subject) => {
     try {
       setLoading(true);
-      // Извлекаем grade из названия класса студента
-      const grade = extractGradeFromClassName(className);
-      const materialData = await getMaterialsByGradeAndType(grade, category);
-      setMaterials(materialData);
+      
+      if (!selectedGrade) {
+        setError('Не удалось определить класс');
+        return;
+      }
+      
+      const { data: materialData, error } = await supabase
+        .from("materials")
+        .select("*, subject:subjects(*)")
+        .eq("grade", selectedGrade)
+        .eq("subject_id", subject.id)
+        .eq("type", currentType)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      setMaterials(materialData || []);
       setSelectedSubject(subject);
-      setCurrentCategory(category);
       setView('materials');
     } catch (err) {
       setError('Ошибка загрузки материалов');
@@ -72,7 +93,7 @@ export default function StudentDashboardPage({ student, className }: StudentDash
 
   const handleBack = () => {
     if (view === 'materials') {
-      setView(currentCategory.toLowerCase() as 'sor' | 'soch');
+      setView(currentType.toLowerCase() as 'sor' | 'soch');
       setSelectedSubject(null);
       setMaterials([]);
     } else if (view === 'sor' || view === 'soch') {
@@ -134,14 +155,14 @@ export default function StudentDashboardPage({ student, className }: StudentDash
                   {view === 'main' && `${t('home.welcome')}, ${getStudentName()}!`}
                   {view === 'sor' && t('dashboard.sor')}
                   {view === 'soch' && t('dashboard.soch')}
-                  {view === 'materials' && selectedSubject && `${selectedSubject.name} - ${currentCategory}`}
+                  {view === 'materials' && selectedSubject && `${selectedSubject.name} - ${currentType}`}
                 </h1>
                 </div>
                 <p className="text-gray-600">
                   {view === 'main' && `${t('home.class')} ${className}`}
                   {view === 'sor' && t('dashboard.sorDesc')}
                   {view === 'soch' && t('dashboard.sochDesc')}
-                  {view === 'materials' && (currentCategory === 'SOR' ? t('dashboard.sorDesc') : t('dashboard.sochDesc'))}
+                  {view === 'materials' && (currentType === 'SOR' ? t('dashboard.sorDesc') : t('dashboard.sochDesc'))}
                 </p>
               </div>
             </div>
@@ -268,7 +289,14 @@ export default function StudentDashboardPage({ student, className }: StudentDash
               transition={{ duration: 0.3 }}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
             >
-              {subjects.map((subject, index) => (
+              {subjects.length === 0 ? (
+                <div className="col-span-full text-center py-12">
+                  <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-medium text-gray-600 mb-2">Нет предметов</h3>
+                  <p className="text-gray-500">Предметы для этого класса пока не добавлены</p>
+                </div>
+              ) : (
+                subjects.map((subject, index) => (
                 <motion.div
                   key={subject.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -276,7 +304,7 @@ export default function StudentDashboardPage({ student, className }: StudentDash
                   transition={{ delay: index * 0.05 }}
                   whileHover={{ scale: 1.01, y: -2 }}
                   whileTap={{ scale: 0.99 }}
-                  onClick={() => loadSubjectMaterials(subject, view.toUpperCase() as 'SOR' | 'SOCH')}
+                  onClick={() => loadSubjectMaterials(subject)}
                   className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 p-4"
                 >
                   <div className="flex items-center space-x-3">
@@ -288,7 +316,8 @@ export default function StudentDashboardPage({ student, className }: StudentDash
                     </div>
                   </div>
                 </motion.div>
-              ))}
+                ))
+              )}
             </motion.div>
           )}
 
@@ -305,8 +334,8 @@ export default function StudentDashboardPage({ student, className }: StudentDash
               {materials.length === 0 ? (
                 <div className="col-span-full text-center py-12">
                   <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-medium text-gray-600 mb-2">{t('materials.noMaterials')}</h3>
-                  <p className="text-gray-500">{t('dashboard.noMaterialsForSubject')}</p>
+                  <h3 className="text-xl font-medium text-gray-600 mb-2">Нет материалов</h3>
+                  <p className="text-gray-500">Материалы для этого предмета и класса пока не добавлены</p>
                 </div>
               ) : (
                 materials.map((material, index) => (
@@ -318,9 +347,9 @@ export default function StudentDashboardPage({ student, className }: StudentDash
                     className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden"
                   >
                     {/* Material Header */}
-                    <div className={`p-4 ${currentCategory === 'SOR' ? 'bg-green-50' : 'bg-purple-50'}`}>
+                    <div className={`p-4 ${currentType === 'SOR' ? 'bg-green-50' : 'bg-purple-50'}`}>
                       <div className="flex items-center space-x-3">
-                        <div className={`p-2 rounded-lg ${currentCategory === 'SOR' ? 'bg-green-100' : 'bg-purple-100'}`}>
+                        <div className={`p-2 rounded-lg ${currentType === 'SOR' ? 'bg-green-100' : 'bg-purple-100'}`}>
                           <FileText className="w-5 h-5" />
                         </div>
                         <div>
