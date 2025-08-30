@@ -225,11 +225,22 @@ export default function StudentDashboard({ student, className, onLogout }: Stude
             >
               {subjects.map((subject, index) => (
                 <SubjectCard
-                  key={subject.id}
-                  subject={subject}
-                  onClick={() => loadSubjectMaterials(subject, view.toUpperCase() as 'SOR' | 'SOCH')}
-                  index={index}
-                />
+                <motion.div
+                  key={material.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden cursor-pointer"
+                  onClick={() => {
+                    // Здесь можно добавить логику для открытия модального окна
+                    // Пока используем существующий MaterialCard
+                  }}
+                >
+                  <MaterialCard
+                    material={material}
+                    index={index}
+                  />
+                </motion.div>
               ))}
             </motion.div>
           )}

@@ -79,9 +79,27 @@ export interface Material {
   subject_id: string;
   title: string;
   type: 'SOR' | 'SOCH';
-  content_type: 'text' | 'image' | 'file' | 'link';
-  content_value: string;
+  content_type: 'bundle';
+  content_value: MaterialContentItem[];
   created_at: string;
   grade: number;
+  language: string;
+  quarter: number;
   subject?: Subject;
 }
+
+export type MaterialContentItem =
+  | { type: 'text'; value: string }
+  | { type: 'link'; value: string }
+  | { type: 'file'; value: string }
+  | { type: 'image'; value: string };
+
+export type MaterialPayload = {
+  title: string;
+  type: 'SOR' | 'SOCH';
+  grade: number;
+  subject_id: string;
+  quarter?: number | null;
+  language?: 'ru' | 'uz' | 'en' | null;
+  content_value: MaterialContentItem[];
+};

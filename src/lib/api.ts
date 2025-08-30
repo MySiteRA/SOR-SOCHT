@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import bcrypt from 'bcryptjs';
-import type { Class, Student, Key, Subject, FileRecord, Download, Material } from './supabase';
+import type { Class, Student, Key, Subject, FileRecord, Download, Material, MaterialContentItem, MaterialPayload } from './supabase';
 
 // ==================== Классы ====================
 export async function getClasses(): Promise<Class[]> {
@@ -226,13 +226,26 @@ export async function deleteSubject(id: string): Promise<void> {
 
 // ==================== Материалы ====================
 export async function getMaterialsByGrade(grade: number): Promise<Material[]> {
-  const { data, error } = await supabase.from('materials').select(`*, subject:subjects(*)`).eq('grade', grade).order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('materials')
+    .select(`*, subject:subjects(*)`)
+    .eq('grade', grade)
+    .order('created_at', { ascending: false });
+    
   if (error) throw error;
-  return data || [];
+  
+  return (data || []).map(m => ({
+    ...m,
+    content_value: Array.isArray(m.content_value) ? m.content_value : []
+  }));
 }
 
 export async function getMaterialsByGradeAndType(grade: number, type: 'SOR' | 'SOCH', subjectId?: string): Promise<Material[]> {
-  let query = supabase.from('materials').select(`*, subject:subjects(*)`).eq('grade', grade).eq('type', type);
+  let query = supabase
+    .from('materials')
+    .select(`*, subject:subjects(*)`)
+    .eq('grade', grade)
+    .eq('type', type);
   
   if (subjectId) {
     query = query.eq('subject_id', subjectId);
@@ -240,7 +253,11 @@ export async function getMaterialsByGradeAndType(grade: number, type: 'SOR' | 'S
   
   const { data, error } = await query.order('created_at', { ascending: false });
   if (error) throw error;
-  return data || [];
+  
+  return (data || []).map(m => ({
+    ...m,
+    content_value: Array.isArray(m.content_value) ? m.content_value : []
+  }));
 }
 
 export async function getMaterialsBySubjectAndGrade(subjectId: string, grade: number, type: 'SOR' | 'SOCH'): Promise<Material[]> {
@@ -251,22 +268,52 @@ export async function getMaterialsBySubjectAndGrade(subjectId: string, grade: nu
     .eq('grade', grade)
     .eq('type', type)
     .order('created_at', { ascending: false });
+     
   if (error) throw error;
-  return data || [];
+  
+  return (data || []).map(m => ({
+    ...m,
+    content_value: Array.isArray(m.content_value) ? m.content_value : []
+  }));
 }
 
-export async function createMaterial(subjectId: string, title: string, type: 'SOR' | 'SOCH', contentType: 'text' | 'image' | 'file' | 'link', contentValue: string, grade: number): Promise<Material> {
-  const { data, error } = await supabase.from('materials').insert({
+export async function addMaterial(payload: Omit<MaterialPayload, 'content_type'>): Promise<Material> {
+  const bundle: MaterialContentItem[] = payload.content_value || [];
+  
+  const { data, error } = await supabase
+    .from('materials')
+    .insert([{
+      title: payload.title,
+      type: payload.type,
+      grade: payload.grade,
+      subject_id: payload.subject_id,
+      quarter: payload.quarter || null,
+      language: payload.language || null,
+      content_type: 'bundle',
+      content_value: bundle
+    }])
+    .select(`*, subject:subjects(*)`)
+    .single();
+    
+  if (error) throw error;
+  await logAction('MATERIAL_CREATED', `Material ${payload.title} created for subject ${payload.subject_id}, grade ${payload.grade}`);
+  return data;
+}
+
+export async function createMaterial(
+  subjectId: string, 
+  title: string, 
+  type: 'SOR' | 'SOCH', 
+  contentData: Array<{type: 'text' | 'link' | 'image' | 'file', value: string}>, 
+  grade: number
+): Promise<Material> {
+  return addMaterial({
     subject_id: subjectId,
     title,
     type,
-    content_type: contentType,
-    content_value: contentValue,
+    content_value: contentData,
     grade
-  }).select(`*, subject:subjects(*)`).single();
-  if (error) throw error;
-  await logAction('MATERIAL_CREATED', `Material ${title} created for subject ${subjectId}, grade ${grade}`);
-  return data;
+  });
 }
 
 export async function deleteMaterial(id: string): Promise<void> {
@@ -275,12 +322,22 @@ export async function deleteMaterial(id: string): Promise<void> {
   await logAction('MATERIAL_DELETED', `Material ${id} deleted`);
 }
 
-export async function updateMaterial(id: string, title: string, contentType: 'text' | 'image' | 'file' | 'link', contentValue: string): Promise<Material> {
-  const { data, error } = await supabase.from('materials').update({
-    title,
-    content_type: contentType,
-    content_value: contentValue
-  }).eq('id', id).select(`*, subject:subjects(*)`).single();
+export async function updateMaterial(
+  id: string, 
+  title: string, 
+  contentData: MaterialContentItem[]
+): Promise<Material> {
+  const { data, error } = await supabase
+    .from('materials')
+    .update({
+      title,
+      content_type: 'bundle',
+      content_value: contentData
+    })
+    .eq('id', id)
+    .select(`*, subject:subjects(*)`)
+    .single();
+    
   if (error) throw error;
   await logAction('MATERIAL_UPDATED', `Material ${id} updated`);
   return data;

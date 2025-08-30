@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Key, Edit, Trash2, Copy, Plus, Calendar, Upload, FileText,
-  Users, BookOpen, Home, LogOut, X, Download, ExternalLink, Image
+  Users, BookOpen, Home, LogOut, X, Download, ExternalLink, Image, Minus
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -15,7 +15,11 @@ import {
 import type { Class, Student, Key as KeyType, Subject, Material } from '../lib/supabase';
 
 type AdminView = 'main' | 'classes' | 'students' | 'student-profile' | 'sor' | 'soch' | 'subjects' | 'materials';
-type ContentType = 'text' | 'image' | 'file' | 'link';
+
+interface ContentItem {
+  type: 'text' | 'link' | 'image' | 'file';
+  value: string;
+}
 
 interface AdminPageProps {
   onLogout: () => void;
@@ -56,13 +60,8 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
   
   // Форма материала
   const [materialTitle, setMaterialTitle] = useState('');
-  const [selectedContentTypes, setSelectedContentTypes] = useState<ContentType[]>(['text']);
-  const [materialContents, setMaterialContents] = useState<Record<ContentType, string>>({
-    text: '',
-    image: '',
-    file: '',
-    link: ''
-  });
+  const [enabledContentTypes, setEnabledContentTypes] = useState<Set<string>>(new Set());
+  const [contentItems, setContentItems] = useState<ContentItem[]>([]);
 
   // ====== Загрузка данных ======
   useEffect(() => {
@@ -219,30 +218,27 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
   };
 
   const handleAddMaterial = async () => {
-    if (!materialTitle.trim() || !selectedSubject || !selectedGrade || selectedContentTypes.length === 0) {
+    if (!materialTitle.trim() || !selectedSubject || !selectedGrade || contentItems.length === 0) {
       setError('Заполните все обязательные поля');
       return;
     }
 
-    // Проверяем, что для всех выбранных типов есть контент
-    const hasEmptyContent = selectedContentTypes.some(type => !materialContents[type].trim());
+    // Проверяем, что все элементы контента заполнены
+    const hasEmptyContent = contentItems.some(item => !item.value.trim());
     if (hasEmptyContent) {
-      setError('Заполните все поля для выбранных типов контента');
+      setError('Заполните все поля контента');
       return;
     }
 
     try {
-      // Создаем материал для каждого выбранного типа контента
-      for (const contentType of selectedContentTypes) {
-        await createMaterial(
-          selectedSubject.id,
-          `${materialTitle.trim()}${selectedContentTypes.length > 1 ? ` (${contentType})` : ''}`,
-          currentSection,
-          contentType,
-          materialContents[contentType].trim(),
-          selectedGrade
-        );
-      }
+      // Создаем один материал с JSON контентом
+      await createMaterial(
+        selectedSubject.id,
+        materialTitle.trim(),
+        currentSection,
+        contentItems,
+        selectedGrade
+      );
 
       setSuccess('Материал успешно добавлен');
       setShowAddMaterialModal(false);
@@ -315,40 +311,60 @@ setStudents(prevStudents =>
 
   const resetMaterialForm = () => {
     setMaterialTitle('');
-    setSelectedContentTypes(['text']);
-    setMaterialContents({
-      text: '',
-      image: '',
-      file: '',
-      link: ''
-    });
+    setEnabledContentTypes(new Set());
+    setContentItems([]);
   };
 
-  const handleContentTypeToggle = (type: ContentType) => {
-    setSelectedContentTypes(prev => {
-      if (prev.includes(type)) {
-        // Не позволяем убрать все типы
-        if (prev.length === 1) return prev;
-        return prev.filter(t => t !== type);
+  const handleContentTypeToggle = (type: string) => {
+    setEnabledContentTypes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(type)) {
+        newSet.delete(type);
+        // Удаляем все элементы этого типа
+        setContentItems(prevItems => prevItems.filter(item => item.type !== type));
       } else {
-        return [...prev, type];
+        newSet.add(type);
+        // Добавляем первый элемент этого типа
+        setContentItems(prevItems => [...prevItems, { type: type as any, value: '' }]);
       }
+      return newSet;
     });
   };
 
-  const handleContentChange = (type: ContentType, value: string) => {
-    setMaterialContents(prev => ({
-      ...prev,
-      [type]: value
-    }));
+  const addContentItem = (type: string) => {
+    setContentItems(prev => [...prev, { type: type as any, value: '' }]);
   };
 
-  const getContentTypeLabel = (type: ContentType) => {
+  const updateContentItem = (index: number, value: string) => {
+    setContentItems(prev => prev.map((item, i) => 
+      i === index ? { ...item, value } : item
+    ));
+  };
+
+  const removeContentItem = (index: number) => {
+    setContentItems(prev => {
+      const newItems = prev.filter((_, i) => i !== index);
+      // Если удалили все элементы типа, отключаем чекбокс
+      const removedType = prev[index].type;
+      const hasOtherItemsOfType = newItems.some(item => item.type === removedType);
+      if (!hasOtherItemsOfType) {
+        setEnabledContentTypes(prevTypes => {
+          const newSet = new Set(prevTypes);
+          newSet.delete(removedType);
+          return newSet;
+        });
+      }
+      return newItems;
+    });
+  };
+
+  const getContentTypeLabel = (type: string) => {
     switch (type) {
       case 'text': return 'Текст';
       case 'image': return 'Изображение';
       case 'file': return 'Файл';
       case 'link': return 'Ссылка';
+      default: return type;
     }
   };
 
@@ -411,20 +427,17 @@ setStudents(prevStudents =>
     });
 
   const handleContentClick = (material: Material) => {
-    if (material.content_type === 'image') {
-      setSelectedImage(material.content_value);
-      setShowImageModal(true);
-    } else if (material.content_type === 'link' || material.content_type === 'file') {
-      window.open(material.content_value, '_blank');
-    }
+    // Открываем модальное окно материала
+    // Эта функция будет обрабатываться в родительском компоненте
   };
 
-  const getContentIcon = (contentType: ContentType) => {
+  const getContentIcon = (contentType: string) => {
     switch (contentType) {
-      case 'text': return <FileText className="w-5 h-5" />;
-      case 'image': return <Image className="w-5 h-5" />;
-      case 'file': return <Download className="w-5 h-5" />;
-      case 'link': return <ExternalLink className="w-5 h-5" />;
+      case 'text': return <FileText className="w-4 h-4" />;
+      case 'image': return <Image className="w-4 h-4" />;
+      case 'file': return <Download className="w-4 h-4" />;
+      case 'link': return <ExternalLink className="w-4 h-4" />;
+      default: return <FileText className="w-4 h-4" />;
     }
   };
 
@@ -796,74 +809,54 @@ setStudents(prevStudents =>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {materials.map((material, index) => (
-                  <motion.div
-                    key={material.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden"
-                  >
-                    {/* Material Header */}
-                    <div className={`p-4 ${currentSection === 'SOR' ? 'bg-green-50' : 'bg-purple-50'}`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
+                  <div key={material.id} className="relative">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 p-6 cursor-pointer"
+                      onClick={() => handleContentClick(material)}
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-start space-x-3 flex-1">
                           <div className={`p-2 rounded-lg ${currentSection === 'SOR' ? 'bg-green-100' : 'bg-purple-100'}`}>
-                            {getContentIcon(material.content_type)}
+                            <FileText className={`w-5 h-5 ${currentSection === 'SOR' ? 'text-green-600' : 'text-purple-600'}`} />
                           </div>
-                          <div>
-                            <h3 className="text-lg font-bold text-gray-900">{material.title}</h3>
-                            <p className="text-sm text-gray-600">{material.type}</p>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-2">
+                              {material.title}
+                            </h3>
+                            <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+                              <BookOpen className="w-4 h-4" />
+                              <span>{material.subject?.name}</span>
+                            </div>
+                            <div className="flex items-center space-x-1 text-sm text-gray-500">
+                              <Calendar className="w-4 h-4" />
+                              <span>{formatDate(material.created_at)}</span>
+                            </div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleDeleteMaterial(material)}
-                          className="p-2 bg-red-100 rounded-lg hover:bg-red-200 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </button>
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          material.type === 'SOR' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-purple-100 text-purple-800'
+                        }`}>
+                          {material.type}
+                        </span>
                       </div>
-                    </div>
-
-                    {/* Material Content */}
-                    <div className="p-4">
-                      {material.content_type === 'text' && (
-                        <p className="text-gray-700 leading-relaxed">{material.content_value}</p>
-                      )}
-                      
-                      {material.content_type === 'image' && (
-                        <div className="text-center">
-                          <img
-                            src={material.content_value}
-                            alt={material.title}
-                            className="max-w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={() => handleContentClick(material)}
-                          />
-                        </div>
-                      )}
-                      
-                      {(material.content_type === 'file' || material.content_type === 'link') && (
-                        <div className="text-center">
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleContentClick(material)}
-                            className="inline-flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                          >
-                            {getContentIcon(material.content_type)}
-                            <span>
-                              {material.content_type === 'file' ? 'Скачать' : 'Открыть'}
-                            </span>
-                          </motion.button>
-                        </div>
-                      )}
-                      
-                      <div className="mt-4 pt-4 border-t border-gray-100">
-                        <p className="text-sm text-gray-500">
-                          Создано: {formatDate(material.created_at)}
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
+                    </motion.div>
+                    
+                    {/* Delete button - positioned absolutely */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteMaterial(material);
+                      }}
+                      className="absolute top-2 right-2 p-2 bg-red-100 rounded-lg hover:bg-red-200 transition-colors z-10"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -1148,14 +1141,14 @@ setStudents(prevStudents =>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Типы содержимого (можно выбрать несколько)
+                Типы содержимого
               </label>
               <div className="grid grid-cols-2 gap-2">
-                {(['text', 'image', 'file', 'link'] as ContentType[]).map(type => (
+                {(['text', 'link', 'image', 'file']).map(type => (
                   <label key={type} className="flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                     <input
                       type="checkbox"
-                      checked={selectedContentTypes.includes(type)}
+                      checked={enabledContentTypes.has(type)}
                       onChange={() => handleContentTypeToggle(type)}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
@@ -1168,48 +1161,75 @@ setStudents(prevStudents =>
               </div>
             </div>
 
-            {/* Поля ввода для каждого выбранного типа */}
-            {selectedContentTypes.map(type => (
-              <div key={type}>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {getContentTypeLabel(type)}
-                  {type === 'text' && ' - содержимое'}
-                  {type === 'image' && ' - URL изображения'}
-                  {type === 'file' && ' - URL файла'}
-                  {type === 'link' && ' - ссылка'}
-                </label>
-                
-                {type === 'text' ? (
-                  <textarea
-                    value={materialContents[type]}
-                    onChange={(e) => handleContentChange(type, e.target.value)}
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Введите текст"
-                  />
-                ) : (
-                  <input
-                    type={type === 'link' ? 'url' : 'text'}
-                    value={materialContents[type]}
-                    onChange={(e) => handleContentChange(type, e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder={
-                      type === 'link' ? 'https://example.com' : 
-                      type === 'image' ? 'https://example.com/image.jpg' :
-                      'https://example.com/file.pdf'
-                    }
-                  />
-                )}
-              </div>
-            ))}
+            {/* Поля ввода для каждого включенного типа */}
+            {Array.from(enabledContentTypes).map(type => {
+              const itemsOfType = contentItems.filter(item => item.type === type);
+              
+              return (
+                <div key={type} className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium text-gray-700">
+                      {getContentTypeLabel(type)}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => addContentItem(type)}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      + Добавить ещё {getContentTypeLabel(type).toLowerCase()}
+                    </button>
+                  </div>
+                  
+                  {itemsOfType.map((item, itemIndex) => {
+                    const globalIndex = contentItems.findIndex(ci => ci === item);
+                    return (
+                      <div key={globalIndex} className="flex items-start space-x-2">
+                        <div className="flex-1">
+                          {type === 'text' ? (
+                            <textarea
+                              value={item.value}
+                              onChange={(e) => updateContentItem(globalIndex, e.target.value)}
+                              rows={3}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              placeholder="Введите текст"
+                            />
+                          ) : (
+                            <input
+                              type={type === 'link' ? 'url' : 'text'}
+                              value={item.value}
+                              onChange={(e) => updateContentItem(globalIndex, e.target.value)}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              placeholder={
+                                type === 'link' ? 'https://example.com' : 
+                                type === 'image' ? 'https://example.com/image.jpg' :
+                                'https://example.com/file.pdf'
+                              }
+                            />
+                          )}
+                        </div>
+                        {itemsOfType.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeContentItem(globalIndex)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
 
             <button
               onClick={handleAddMaterial}
               disabled={
                 !materialTitle.trim() || 
                 !selectedGrade ||
-                selectedContentTypes.length === 0 ||
-                selectedContentTypes.some(type => !materialContents[type].trim())
+                contentItems.length === 0 ||
+                contentItems.some(item => !item.value.trim())
               }
               className={`w-full py-2 px-4 rounded-lg text-white font-medium transition-all duration-300 disabled:bg-gray-300 disabled:cursor-not-allowed ${
                 currentSection === 'SOR' 

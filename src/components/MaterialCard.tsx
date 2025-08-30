@@ -1,45 +1,29 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { FileText, Image, Download, ExternalLink, Edit, Trash2 } from 'lucide-react';
+import { FileText, Calendar, BookOpen, ExternalLink, Image, Download } from 'lucide-react';
 import type { Material } from '../lib/supabase';
 
 interface MaterialCardProps {
   material: Material;
-  onEdit?: () => void;
-  onDelete?: () => void;
-  isAdmin?: boolean;
   index: number;
+  onClick?: () => void;
 }
 
-export default function MaterialCard({ material, onEdit, onDelete, isAdmin = false, index }: MaterialCardProps) {
-  const getContentIcon = () => {
-    switch (material.content_type) {
-      case 'text':
-        return <FileText className="w-5 h-5" />;
-      case 'image':
-        return <Image className="w-5 h-5" />;
-      case 'file':
-        return <Download className="w-5 h-5" />;
-      case 'link':
-        return <ExternalLink className="w-5 h-5" />;
-      default:
-        return <FileText className="w-5 h-5" />;
+export default function MaterialCard({ material, index, onClick }: MaterialCardProps) {
+  // Парсим JSON контент для определения типов содержимого
+  const getContentTypes = () => {
+    try {
+      const content = Array.isArray(material.content_value) 
+        ? material.content_value 
+        : JSON.parse(material.content_value as string) as Array<{type: string, value: string}>;
+      const types = [...new Set(content.map(item => item.type))];
+      return types;
+    } catch {
+      return [];
     }
   };
 
-  const getTypeColor = () => {
-    return material.type === 'SOR' 
-      ? 'bg-gradient-to-r from-green-400 to-green-600' 
-      : 'bg-gradient-to-r from-purple-400 to-purple-600';
-  };
-
-  const handleContentClick = () => {
-    if (material.content_type === 'link') {
-      window.open(material.content_value, '_blank');
-    } else if (material.content_type === 'file') {
-      window.open(material.content_value, '_blank');
-    }
-  };
+  const contentTypes = getContentTypes();
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('ru-RU', {
@@ -53,77 +37,71 @@ export default function MaterialCard({ material, onEdit, onDelete, isAdmin = fal
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1 }}
-      className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden"
+      transition={{ delay: index * 0.05 }}
+      whileHover={{ scale: 1.01, y: -2 }}
+      whileTap={{ scale: 0.99 }}
+      onClick={onClick}
+      className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 p-6"
     >
-      {/* Header */}
-      <div className={`${getTypeColor()} p-4 text-white`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="bg-white bg-opacity-20 p-2 rounded-lg">
-              {getContentIcon()}
-            </div>
-            <div>
-              <h3 className="text-lg font-bold">{material.title}</h3>
-              <p className="text-sm opacity-90">{material.type}</p>
-            </div>
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-start space-x-3 flex-1">
+          <div className={`p-2 rounded-lg ${
+            material.type === 'SOR' ? 'bg-green-100' : 'bg-purple-100'
+          }`}>
+            <FileText className={`w-5 h-5 ${
+              material.type === 'SOR' ? 'text-green-600' : 'text-purple-600'
+            }`} />
           </div>
-          {isAdmin && (
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={onEdit}
-                className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-colors"
-              >
-                <Edit className="w-4 h-4" />
-              </button>
-              <button
-                onClick={onDelete}
-                className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg font-semibold text-gray-900 mb-1 line-clamp-2">
+              {material.title}
+            </h3>
+            <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+              <BookOpen className="w-4 h-4" />
+              <span>{material.subject?.name}</span>
             </div>
-          )}
+            <div className="flex items-center space-x-1 text-sm text-gray-500">
+              <Calendar className="w-4 h-4" />
+              <span>{formatDate(material.created_at)}</span>
+            </div>
+            {/* Показываем типы контента */}
+            {contentTypes.length > 0 && (
+              <div className="flex items-center space-x-2 mt-2">
+                {contentTypes.includes('text') && (
+                  <div className="flex items-center space-x-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    <FileText className="w-3 h-3" />
+                    <span>Текст</span>
+                  </div>
+                )}
+                {contentTypes.includes('link') && (
+                  <div className="flex items-center space-x-1 text-xs text-gray-500 bg-blue-100 px-2 py-1 rounded">
+                    <ExternalLink className="w-3 h-3" />
+                    <span>Ссылки</span>
+                  </div>
+                )}
+                {contentTypes.includes('image') && (
+                  <div className="flex items-center space-x-1 text-xs text-gray-500 bg-green-100 px-2 py-1 rounded">
+                    <Image className="w-3 h-3" />
+                    <span>Фото</span>
+                  </div>
+                )}
+                {contentTypes.includes('file') && (
+                  <div className="flex items-center space-x-1 text-xs text-gray-500 bg-orange-100 px-2 py-1 rounded">
+                    <Download className="w-3 h-3" />
+                    <span>Файлы</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-
-      {/* Content */}
-      <div className="p-4">
-        {material.content_type === 'text' && (
-          <p className="text-gray-700 leading-relaxed">{material.content_value}</p>
-        )}
-        
-        {material.content_type === 'image' && (
-          <div className="text-center">
-            <img
-              src={material.content_value}
-              alt={material.title}
-              className="max-w-full h-auto rounded-lg shadow-md"
-            />
-          </div>
-        )}
-        
-        {(material.content_type === 'file' || material.content_type === 'link') && (
-          <div className="text-center">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleContentClick}
-              className="inline-flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              {getContentIcon()}
-              <span>
-                {material.content_type === 'file' ? 'Скачать файл' : 'Перейти по ссылке'}
-              </span>
-            </motion.button>
-          </div>
-        )}
-        
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <p className="text-sm text-gray-500">
-            Создано: {formatDate(material.created_at)}
-          </p>
-        </div>
+        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+          material.type === 'SOR' 
+            ? 'bg-green-100 text-green-800' 
+            : 'bg-purple-100 text-purple-800'
+        }`}>
+          {material.type}
+        </span>
       </div>
     </motion.div>
   );

@@ -4,6 +4,8 @@ import { ArrowLeft, BookOpen, FileText, Users, MoreVertical, LogOut, Trash2 } fr
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
+import MaterialCard from '../components/MaterialCard';
+import MaterialModal from '../components/MaterialModal';
 import { supabase } from '../lib/supabase';
 import {
   DropdownMenu,
@@ -27,6 +29,8 @@ export default function StudentDashboardPage({ student, className }: StudentDash
   const [view, setView] = useState<DashboardView>('main');
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
   const [currentType, setCurrentType] = useState<'SOR' | 'SOCH'>('SOR');
@@ -117,20 +121,22 @@ export default function StudentDashboardPage({ student, className }: StudentDash
     navigate('/');
   };
 
+  const handleMaterialClick = (material: Material) => {
+    setSelectedMaterial(material);
+    setShowMaterialModal(true);
+  };
+
+  const closeMaterialModal = () => {
+    setShowMaterialModal(false);
+    setSelectedMaterial(null);
+  };
+
   const getStudentName = () => {
     const nameParts = student.name.split(' ');
     if (nameParts.length >= 2) {
       return `${nameParts[0]} ${nameParts[1]}`;
     }
     return student.name;
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ru-RU', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
   };
 
   return (
@@ -339,72 +345,26 @@ export default function StudentDashboardPage({ student, className }: StudentDash
                 </div>
               ) : (
                 materials.map((material, index) => (
-                  <motion.div
+                  <MaterialCard
                     key={material.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden"
-                  >
-                    {/* Material Header */}
-                    <div className={`p-4 ${currentType === 'SOR' ? 'bg-green-50' : 'bg-purple-50'}`}>
-                      <div className="flex items-center space-x-3">
-                        <div className={`p-2 rounded-lg ${currentType === 'SOR' ? 'bg-green-100' : 'bg-purple-100'}`}>
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-gray-900">{material.title}</h3>
-                          <p className="text-sm text-gray-600">{material.type}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Material Content */}
-                    <div className="p-4">
-                      {material.content_type === 'text' && (
-                        <p className="text-gray-700 leading-relaxed">{material.content_value}</p>
-                      )}
-                      
-                      {material.content_type === 'image' && (
-                        <div className="text-center">
-                          <img
-                            src={material.content_value}
-                            alt={material.title}
-                            className="max-w-full h-auto rounded-lg shadow-md"
-                          />
-                        </div>
-                      )}
-                      
-                      {(material.content_type === 'file' || material.content_type === 'link') && (
-                        <div className="text-center">
-                          <motion.a
-                            href={material.content_value}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            className="inline-flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-                          >
-                            <FileText className="w-5 h-5" />
-                            <span>
-                              {material.content_type === 'file' ? 'Скачать файл' : 'Перейти по ссылке'}
-                            </span>
-                          </motion.a>
-                        </div>
-                      )}
-                      
-                      <div className="mt-4 pt-4 border-t border-gray-100">
-                        <p className="text-sm text-gray-500">
-                          Создано: {formatDate(material.created_at)}
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
+                    material={material}
+                    index={index}
+                    onClick={() => handleMaterialClick(material)}
+                  />
                 ))
               )}
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Material Modal */}
+        {selectedMaterial && (
+          <MaterialModal
+            isOpen={showMaterialModal}
+            onClose={closeMaterialModal}
+            material={selectedMaterial}
+          />
+        )}
       </div>
     </div>
   );
