@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import bcrypt from 'bcryptjs';
-import type { Class, Student, Key, Subject, FileRecord, Download, Material, MaterialContentItem, MaterialPayload } from './supabase';
+import { verifyStudentPassword, setStudentPassword } from './auth';
+import type { Class, Student, Key, Subject, FileRecord, Download, Material, MaterialContentItem, MaterialPayload, StudentProfile, LoginSession } from './supabase';
 
 // ==================== Классы ====================
 export async function getClasses(): Promise<Class[]> {
@@ -136,10 +137,30 @@ export async function validatePassword(studentId: string, password: string): Pro
   
   // Обновляем время последнего входа при успешной авторизации
   if (isValid) {
+    // Получаем информацию об устройстве
+    const deviceInfo = {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      language: navigator.language,
+      timestamp: new Date().toISOString()
+    };
+    
     await supabase
       .from('students')
-      .update({ last_login: new Date().toISOString() })
+      .update({ 
+        last_login: new Date().toISOString(),
+        device_info: deviceInfo
+      })
       .eq('id', studentId);
+    
+    // Записываем сессию входа
+    await supabase
+      .from('login_sessions')
+      .insert({
+        student_id: studentId,
+        device_info: deviceInfo,
+        user_agent: navigator.userAgent
+      });
   }
   
   return { valid: isValid, student: isValid ? student : null };
@@ -180,6 +201,18 @@ export async function resetStudentPassword(studentId: string): Promise<void> {
   await logAction('PASSWORD_RESET', `Password reset for student ${studentId}`);
 }
 
+export async function changeStudentPassword(studentId: string, oldPassword: string, newPassword: string): Promise<void> {
+  // Проверяем старый пароль
+  const isOldPasswordValid = await verifyStudentPassword(studentId, oldPassword);
+  if (!isOldPasswordValid) {
+    throw new Error('Неверный старый пароль');
+  }
+  
+  // Устанавливаем новый пароль
+  await setStudentPassword(studentId, newPassword);
+  await logAction('PASSWORD_CHANGED', `Password changed for student ${studentId}`);
+}
+
 export async function updateStudentUrl(studentId: string, url: string): Promise<void> {
   // Обновляем только URL, не трогая password_hash
   const { error } = await supabase
@@ -189,6 +222,72 @@ export async function updateStudentUrl(studentId: string, url: string): Promise<
     
   if (error) throw error;
   await logAction('URL_UPDATED', `URL updated for student ${studentId} to ${url}`);
+}
+
+// ==================== Профили студентов ====================
+export async function getStudentProfile(studentId: string): Promise<StudentProfile | null> {
+  const { data, error } = await supabase
+    .from('student_profiles')
+    .select('*')
+    .eq('student_id', studentId)
+    .maybeSingle();
+    
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+export async function updateStudentAvatar(studentId: string, avatarUrl: string): Promise<void> {
+  // Сначала проверяем, есть ли профиль
+  const { data: existingProfile } = await supabase
+    .from('student_profiles')
+    .select('id')
+    .eq('student_id', studentId)
+    .maybeSingle();
+
+  if (existingProfile) {
+    // Обновляем существующий профиль
+    const { error } = await supabase
+      .from('student_profiles')
+      .update({ avatar_url: avatarUrl })
+      .eq('student_id', studentId);
+    if (error) throw error;
+  } else {
+    // Создаем новый профиль
+    const { error } = await supabase
+      .from('student_profiles')
+      .insert({ student_id: studentId, avatar_url: avatarUrl });
+    if (error) throw error;
+  }
+  
+  // Очищаем кэш профилей после обновления
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('profileUpdated', { detail: { studentId, avatarUrl } }));
+  }
+  
+  await logAction('AVATAR_UPDATED', `Avatar updated for student ${studentId}`);
+}
+
+export async function getStudentLoginSessions(studentId: string, limit?: number): Promise<LoginSession[]> {
+  let query = supabase
+    .from('login_sessions')
+    .select('*')
+    .eq('student_id', studentId)
+    .order('login_time', { ascending: false });
+
+  if (limit) {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Error fetching login sessions:', error);
+    throw error;
+  }
+
+  return data || [];
 }
 
 // ==================== Предметы ====================
@@ -414,4 +513,5 @@ export async function logAction(action: string, details: string): Promise<void> 
 export function validateAdminCredentials(username: string, password: string): boolean {
   return (username === 'admin' && password === 'frost2008791533') ||
          (username === 'admin1' && password === 'madiev2009sor');
+
 }

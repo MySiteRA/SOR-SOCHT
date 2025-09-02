@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GraduationCap, User, Key, Lock, ArrowLeft, Eye, EyeOff, CheckCircle, Loader2, LogOut } from 'lucide-react';
+import { GraduationCap, User, Key, Lock, ArrowLeft, Eye, EyeOff, CheckCircle, Loader2, LogOut, Trash2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import Header from '../components/Header';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Modal from '../components/Modal';
+import StudentAvatar from '../components/StudentAvatar';
+import { useStudentProfiles } from '../hooks/useStudentProfiles';
 import { 
   getClasses, 
   getStudentsByClass, 
@@ -46,18 +48,33 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
   const [isProcessing, setIsProcessing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [savedLogin, setSavedLogin] = useState<{studentId: string, expiresAt: number} | null>(null);
+  const [isAutoLoginProcessing, setIsAutoLoginProcessing] = useState(false);
+
+  // Загружаем профили студентов
+  const studentIds = students.map(s => s.id);
+  const { profiles } = useStudentProfiles(studentIds);
 
   // Проверяем сохраненные данные входа при загрузке
   useEffect(() => {
-    autoLoginWithSavedData();
+    // Проверяем, не был ли выполнен явный выход
+    const shouldSkipAutoLogin = localStorage.getItem('skipAutoLogin') === 'true';
+    if (!shouldSkipAutoLogin) {
+      autoLoginWithSavedData();
+    } else {
+      setIsAutoLoginProcessing(false);
+    }
   }, []);
 
   const autoLoginWithSavedData = async () => {
     try {
+      setIsAutoLoginProcessing(true);
       const savedId = localStorage.getItem('studentId');
       const savedTime = localStorage.getItem('createdAt');
 
-      if (!savedId || !savedTime) return;
+      if (!savedId || !savedTime) {
+        setIsAutoLoginProcessing(false);
+        return;
+      }
 
       const now = Date.now();
       const diff = now - parseInt(savedTime, 10);
@@ -67,6 +84,7 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
         localStorage.removeItem('studentId');
         localStorage.removeItem('createdAt');
         localStorage.removeItem('studentDashboardData');
+        setIsAutoLoginProcessing(false);
         return;
       }
 
@@ -87,13 +105,18 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
           setTimeout(() => {
             onStudentLogin(student, classData.name);
           }, 500);
+        } else {
+          setIsAutoLoginProcessing(false);
         }
+      } else {
+        setIsAutoLoginProcessing(false);
       }
     } catch (err) {
       console.error('Auto login failed:', err);
       localStorage.removeItem('studentId');
       localStorage.removeItem('createdAt');
       localStorage.removeItem('studentDashboardData');
+      setIsAutoLoginProcessing(false);
     }
   };
   useEffect(() => {
@@ -129,6 +152,9 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
   };
 
   const selectStudent = (student: Student) => {
+    // Очищаем флаг пропуска автологина при новом выборе студента
+    localStorage.removeItem('skipAutoLogin');
+    
     // Проверяем, есть ли сохраненный вход для этого ученика
     if (savedLogin && savedLogin.studentId === student.id) {
       handleSuccessfulAuth(student, true);
@@ -231,6 +257,8 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
 
   const handleSuccessfulAuth = (student: Student, isAutoLogin: boolean = false) => {
     if (!isAutoLogin) {
+      // Очищаем флаг пропуска автологина при успешной авторизации
+      localStorage.removeItem('skipAutoLogin');
       // Сохраняем данные входа на 3 дня
       localStorage.setItem('studentId', student.id);
       localStorage.setItem('createdAt', Date.now().toString());
@@ -255,9 +283,10 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('studentId');
-    localStorage.removeItem('createdAt');
-    localStorage.removeItem('studentDashboardData');
+    // Устанавливаем флаг, чтобы предотвратить автоматический вход
+    localStorage.setItem('skipAutoLogin', 'true');
+    
+    // НЕ удаляем данные сеанса при обычном выходе
     setSavedLogin(null);
     setStep('classes');
     setSelectedClass(null);
@@ -268,6 +297,28 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
     setConfirmPassword('');
     setError(null);
     setSuccessMessage(null);
+  };
+
+  const handleForgetSession = () => {
+    // Полностью удаляем сеанс только при явном действии "забыть сеанс"
+    localStorage.removeItem('studentId');
+    localStorage.removeItem('createdAt');
+    localStorage.removeItem('studentDashboardData');
+    
+    // Очищаем состояние
+    setSavedLogin(null);
+    setStep('classes');
+    setSelectedClass(null);
+    setSelectedStudent(null);
+    setStudents([]);
+    setKeyValue('');
+    setPassword('');
+    setConfirmPassword('');
+    setError(null);
+    setSuccessMessage(null);
+    
+    localStorage.removeItem('skipAutoLogin');
+    setSavedLogin(null);
   };
 
   const handleBack = () => {
@@ -298,7 +349,7 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
   };
 
   // Если есть активная сессия и происходит автоматический вход, показываем загрузку
-  if (savedLogin && step === 'classes' && !loading) {
+  if (isAutoLoginProcessing) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 flex items-center justify-center">
         <motion.div
@@ -333,16 +384,27 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
       />
       
       <div className="container mx-auto px-4 py-12">
+        {/* Session Indicator */}
+        {savedLogin && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="fixed top-4 right-20 z-40"
+          >
+            <div className="w-4 h-4 bg-green-500 rounded-full shadow-lg border-2 border-white animate-pulse"></div>
+          </motion.div>
+        )}
+
         {/* Logout Button */}
         {savedLogin && (
           <motion.button
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            onClick={handleLogout}
-            className="fixed top-4 right-4 z-50 flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-700 transition-colors shadow-lg"
+            onClick={handleForgetSession}
+            className="fixed top-4 right-4 z-50 flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-xl hover:bg-orange-700 transition-colors shadow-lg"
           >
-            <LogOut className="w-4 h-4" />
-            <span>{t('auth.logout')}</span>
+            <Trash2 className="w-4 h-4" />
+            <span>Забыть сеанс</span>
           </motion.button>
         )}
 
@@ -460,8 +522,12 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
                     className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 hover:border-indigo-300 p-6"
                   >
                     <div className="flex items-center">
-                      <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mr-4">
-                        <User className="w-6 h-6 text-white" />
+                      <div className="mr-4">
+                        <StudentAvatar 
+                          student={student} 
+                          avatarUrl={profiles.get(student.id)?.avatar_url}
+                          size="md"
+                        />
                       </div>
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-gray-900">{student.name}</h3>
@@ -492,10 +558,12 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
           >
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-indigo-600 font-bold text-lg">
-                    {selectedStudent.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
-                  </span>
+                <div className="flex justify-center mb-4">
+                  <StudentAvatar 
+                    student={selectedStudent} 
+                    avatarUrl={profiles.get(selectedStudent.id)?.avatar_url}
+                    size="lg"
+                  />
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedStudent.name}</h2>
                 <p className="text-gray-600">

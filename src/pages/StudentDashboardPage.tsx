@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, BookOpen, FileText, Users, MoreVertical, LogOut, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, FileText, Users, MoreVertical, LogOut, Trash2, User as UserIcon } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import MaterialCard from '../components/MaterialCard';
 import MaterialModal from '../components/MaterialModal';
+import StudentAvatar from '../components/StudentAvatar';
+import { useStudentProfile } from '../hooks/useStudentProfiles';
 import { supabase } from '../lib/supabase';
 import {
   DropdownMenu,
@@ -14,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
 import { extractGradeFromClassName } from '../lib/api';
-import type { Student, Subject, Material } from '../lib/supabase';
+import type { Student, Subject, Material, StudentProfile } from '../lib/supabase';
 
 type DashboardView = 'main' | 'sor' | 'soch' | 'materials';
 
@@ -36,6 +38,9 @@ export default function StudentDashboardPage({ student, className }: StudentDash
   const [currentType, setCurrentType] = useState<'SOR' | 'SOCH'>('SOR');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Загружаем профиль студента
+  const { profile: studentProfile } = useStudentProfile(student.id);
 
   useEffect(() => {
     if (view === 'sor' || view === 'soch') {
@@ -107,18 +112,23 @@ export default function StudentDashboardPage({ student, className }: StudentDash
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('studentLogin');
-    localStorage.removeItem('studentId');
-    localStorage.removeItem('createdAt');
+    // НЕ удаляем данные сеанса при обычном выходе
+    // Только очищаем данные дашборда
     localStorage.removeItem('studentDashboardData');
     navigate('/');
   };
 
   const handleForgetSession = () => {
+    // Полностью удаляем сеанс только при явном действии "забыть сеанс"
     localStorage.removeItem('studentId');
     localStorage.removeItem('createdAt');
     localStorage.removeItem('studentDashboardData');
+    localStorage.removeItem('shouldAutoLogin');
     navigate('/');
+  };
+
+  const handleProfileClick = () => {
+    navigate('/student-profile');
   };
 
   const handleMaterialClick = (material: Material) => {
@@ -174,6 +184,14 @@ export default function StudentDashboardPage({ student, className }: StudentDash
             </div>
             
             <div className="flex items-center space-x-4">
+              {/* Session Indicator */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="w-3 h-3 bg-green-500 rounded-full shadow-lg animate-pulse"
+                title="Активный сеанс"
+              />
+              
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <motion.button
@@ -198,11 +216,19 @@ export default function StudentDashboardPage({ student, className }: StudentDash
                   >
                     <div>
                       <DropdownMenuItem 
+                        onClick={handleProfileClick}
+                        className="cursor-pointer"
+                      >
+                        <UserIcon className="w-4 h-4 mr-3 text-indigo-500" />
+                        <span className="text-gray-700">Профиль</span>
+                      </DropdownMenuItem>
+                      
+                      <DropdownMenuItem 
                         onClick={handleForgetSession}
                         className="cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4 mr-3 text-orange-500" />
-                        <span className="text-gray-700">Забыть сеанс</span>
+                        <span className="text-gray-700">Забыть сеанс (полный выход)</span>
                       </DropdownMenuItem>
                       
                       <DropdownMenuItem 
@@ -210,7 +236,7 @@ export default function StudentDashboardPage({ student, className }: StudentDash
                         className="cursor-pointer"
                       >
                         <LogOut className="w-4 h-4 mr-3 text-red-500" />
-                        <span className="text-gray-700">{t('auth.logout')}</span>
+                        <span className="text-gray-700">Выйти (сеанс сохранится)</span>
                       </DropdownMenuItem>
                     </div>
                   </motion.div>

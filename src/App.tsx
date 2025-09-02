@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage';
 import AdminPage from './pages/AdminPage';
 import AdminStudentsPage from './pages/AdminStudentsPage';
 import StudentDashboardPage from './pages/StudentDashboardPage';
+import StudentProfilePage from './pages/StudentProfilePage';
 import Modal from './components/Modal';
 import { validateAdminCredentials } from './lib/api';
 import { Lock } from 'lucide-react';
@@ -84,6 +85,19 @@ function AppContent() {
           element={
             studentData ? (
               <StudentDashboardPage 
+                student={studentData.student} 
+                className={studentData.className}
+              />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          } 
+        />
+        <Route 
+          path="/student-profile" 
+          element={
+            studentData ? (
+              <StudentProfilePage 
                 student={studentData.student} 
                 className={studentData.className}
               />

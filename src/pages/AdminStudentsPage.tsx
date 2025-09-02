@@ -7,6 +7,8 @@ import {
 import { useLanguage } from '../contexts/LanguageContext';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import LoadingSpinner from '../components/LoadingSpinner';
+import StudentAvatar from '../components/StudentAvatar';
+import { useStudentProfiles } from '../hooks/useStudentProfiles';
 import { getClasses, getStudentsByClass } from '../lib/api';
 import type { Class, Student } from '../lib/supabase';
 
@@ -27,6 +29,10 @@ export default function AdminStudentsPage({ onBack }: AdminStudentsPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
+
+  // Загружаем профили студентов
+  const studentIds = allStudents.map(s => s.id);
+  const { profiles } = useStudentProfiles(studentIds);
 
   // Фильтры
   const [searchQuery, setSearchQuery] = useState('');
@@ -442,7 +448,13 @@ export default function AdminStudentsPage({ onBack }: AdminStudentsPageProps) {
                                       className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
                                     >
                                       <div className="flex items-center space-x-4">
-                                        <div className="flex items-center space-x-2">
+                                        <div className="flex items-center space-x-3">
+                                          <StudentAvatar 
+                                            student={student} 
+                                            avatarUrl={profiles.get(student.id)?.avatar_url}
+                                            size="sm"
+                                          />
+                                          <div className="flex items-center space-x-2">
                                           {student.password_hash ? (
                                             <CheckCircle className="w-5 h-5 text-green-600" />
                                           ) : (
@@ -451,6 +463,7 @@ export default function AdminStudentsPage({ onBack }: AdminStudentsPageProps) {
                                           <span className="font-medium text-gray-900">
                                             {student.name}
                                           </span>
+                                          </div>
                                         </div>
                                         
                                         <div className="flex items-center space-x-2 text-sm text-gray-500">
