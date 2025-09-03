@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { LanguageProvider } from './contexts/LanguageContext';
-import HomePage from './pages/HomePage';
+import ClassSelectionPage from './pages/ClassSelectionPage';
+import StudentSelectionPage from './pages/StudentSelectionPage';
+import AuthPage from './pages/AuthPage';
 import AdminPage from './pages/AdminPage';
 import AdminStudentsPage from './pages/AdminStudentsPage';
 import StudentDashboardPage from './pages/StudentDashboardPage';
 import StudentProfilePage from './pages/StudentProfilePage';
+import StudentSorPage from './pages/StudentSorPage';
+import StudentSochPage from './pages/StudentSochPage';
+import StudentMaterialsPage from './pages/StudentMaterialsPage';
 import Modal from './components/Modal';
 import { validateAdminCredentials } from './lib/api';
 import { Lock } from 'lucide-react';
@@ -23,11 +28,11 @@ function AppContent() {
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState<string | null>(null);
 
-  // Состояние для студенческого дашборда
-  const [studentData, setStudentData] = useState<{student: any, className: string} | null>(() => {
+  // Получаем данные студента из localStorage
+  const getStudentData = () => {
     const saved = localStorage.getItem('studentDashboardData');
     return saved ? JSON.parse(saved) : null;
-  });
+  };
 
   const handleAdminLoginSuccess = () => {
     setIsAdminLoggedIn(true);
@@ -43,13 +48,6 @@ function AppContent() {
     setIsAdminLoggedIn(false);
     localStorage.removeItem('adminLoggedIn');
     navigate('/');
-  };
-
-  const handleStudentLogin = (student: any, className: string) => {
-    const dashboardData = { student, className };
-    setStudentData(dashboardData);
-    localStorage.setItem('studentDashboardData', JSON.stringify(dashboardData));
-    navigate('/student-dashboard');
   };
   const handleAdminSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,37 +72,90 @@ function AppContent() {
         <Route 
           path="/" 
           element={
-            <HomePage 
-              onShowAdminModal={() => setShowAdminModal(true)} 
-              onStudentLogin={handleStudentLogin}
+            <ClassSelectionPage 
+              onShowAdminModal={() => setShowAdminModal(true)}
             />
           } 
         />
         <Route 
+          path="/class/:classId" 
+          element={<StudentSelectionPage />} 
+        />
+        <Route 
+          path="/auth/:studentId" 
+          element={<AuthPage />} 
+        />
+        <Route 
           path="/student-dashboard" 
           element={
-            studentData ? (
+            (() => {
+              const studentData = getStudentData();
+              return studentData ? (
               <StudentDashboardPage 
                 student={studentData.student} 
                 className={studentData.className}
               />
             ) : (
               <Navigate to="/" replace />
-            )
+            );
+            })()
           } 
         />
         <Route 
           path="/student-profile" 
           element={
-            studentData ? (
+            (() => {
+              const studentData = getStudentData();
+              return studentData ? (
               <StudentProfilePage 
                 student={studentData.student} 
                 className={studentData.className}
               />
             ) : (
               <Navigate to="/" replace />
-            )
+            );
+            })()
           } 
+        />
+        <Route 
+          path="/student-sor" 
+          element={
+            (() => {
+              const studentData = getStudentData();
+              return studentData ? (
+              <StudentSorPage 
+                student={studentData.student} 
+                className={studentData.className}
+              />
+            ) : (
+              <Navigate to="/" replace />
+            );
+            })()
+          } 
+        />
+        <Route 
+          path="/student-soch" 
+          element={
+            (() => {
+              const studentData = getStudentData();
+              return studentData ? (
+              <StudentSochPage 
+                student={studentData.student} 
+                className={studentData.className}
+              />
+            ) : (
+              <Navigate to="/" replace />
+            );
+            })()
+          } 
+        />
+        <Route 
+          path="/student-sor-materials/:subjectId" 
+          element={<StudentMaterialsPage />} 
+        />
+        <Route 
+          path="/student-soch-materials/:subjectId" 
+          element={<StudentMaterialsPage />} 
         />
         <Route 
           path="/admin" 

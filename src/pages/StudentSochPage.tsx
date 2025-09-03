@@ -1,39 +1,81 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, FileText, MoreVertical, LogOut, Trash2, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, BookOpen, MoreVertical, LogOut, Trash2, User as UserIcon } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
+import LoadingSpinner from '../components/LoadingSpinner';
+import MaterialCard from '../components/MaterialCard';
+import MaterialModal from '../components/MaterialModal';
 import StudentAvatar from '../components/StudentAvatar';
 import { useStudentProfile } from '../hooks/useStudentProfiles';
+import { supabase } from '../lib/supabase';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
-import type { Student } from '../lib/supabase';
+import { extractGradeFromClassName } from '../lib/api';
+import type { Student, Subject, Material } from '../lib/supabase';
 
-interface StudentDashboardPageProps {
+interface StudentSochPageProps {
   student: Student;
   className: string;
 }
 
-export default function StudentDashboardPage({ student, className }: StudentDashboardPageProps) {
+export default function StudentSochPage({ student, className }: StudentSochPageProps) {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  const [showMaterialModal, setShowMaterialModal] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Загружаем профиль студента
   const { profile: studentProfile } = useStudentProfile(student.id);
 
+  useEffect(() => {
+    loadSubjects();
+  }, []);
+
+  const loadSubjects = async () => {
+    try {
+      setLoading(true);
+      const { data: subjects, error } = await supabase
+        .from("subjects")
+        .select("*")
+        .order('name');
+      
+      if (error) throw error;
+      
+      setSubjects(subjects || []);
+    } catch (err) {
+      setError('Ошибка загрузки предметов');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSubjectMaterials = (subject: Subject) => {
+    navigate(`/student-soch-materials/${subject.id}`, { 
+      state: { 
+        student, 
+        className, 
+        subject,
+        type: 'SOCH'
+      } 
+    });
+  };
+
   const handleLogout = () => {
-    // НЕ удаляем данные сеанса при обычном выходе
-    // Только очищаем данные дашборда
     localStorage.removeItem('studentDashboardData');
     navigate('/');
   };
 
   const handleForgetSession = () => {
-    // Полностью удаляем сеанс только при явном действии "забыть сеанс"
     localStorage.removeItem('studentId');
     localStorage.removeItem('createdAt');
     localStorage.removeItem('studentDashboardData');
@@ -59,13 +101,22 @@ export default function StudentDashboardPage({ student, className }: StudentDash
       <header className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {t('home.welcome')}, {getStudentName()}!
-              </h1>
-              <p className="text-gray-600">
-                {t('home.class')} {className}
-              </p>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => navigate('/student-dashboard')}
+                className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span>{t('common.back')}</span>
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {t('dashboard.soch')}
+                </h1>
+                <p className="text-gray-600">
+                  {t('dashboard.sochDesc')}
+                </p>
+              </div>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -133,43 +184,65 @@ export default function StudentDashboardPage({ student, className }: StudentDash
       </header>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Main Dashboard */}
-        <motion.div
-          initial={{ opacity: 0, x: 100 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto"
-        >
+        {/* Error Message */}
+        {error && (
           <motion.div
-            whileHover={{ scale: 1.02, y: -5 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('/student-sor')}
-            className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6"
           >
-            <div className="text-center">
-              <div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <BookOpen className="w-10 h-10 text-green-600" />
-              </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('dashboard.sor')}</h2>
-              <p className="text-gray-600">{t('dashboard.sorDesc')}</p>
-            </div>
+            {error}
+            <button
+              onClick={() => setError(null)}
+              className="ml-2 text-red-500 hover:text-red-700"
+            >
+              ✕
+            </button>
           </motion.div>
+        )}
 
+        {/* Loading */}
+        {loading && <LoadingSpinner />}
+
+        {/* Subjects List */}
+        {!loading && (
           <motion.div
-            whileHover={{ scale: 1.02, y: -5 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('/student-soch')}
-            className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
           >
-            <div className="text-center">
-              <div className="bg-purple-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="w-10 h-10 text-purple-600" />
+            {subjects.length === 0 ? (
+              <div className="col-span-full text-center py-12">
+                <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-medium text-gray-600 mb-2">Нет предметов</h3>
+                <p className="text-gray-500">Предметы для этого класса пока не добавлены</p>
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('dashboard.soch')}</h2>
-              <p className="text-gray-600">{t('dashboard.sochDesc')}</p>
-            </div>
+            ) : (
+              subjects.map((subject, index) => (
+                <motion.div
+                  key={subject.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ scale: 1.01, y: -2 }}
+                  whileTap={{ scale: 0.99 }}
+                  onClick={() => loadSubjectMaterials(subject)}
+                  className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 p-4"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-purple-100 p-2 rounded-lg">
+                      <BookOpen className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-medium text-gray-900">{subject.name}</h3>
+                    </div>
+                  </div>
+                </motion.div>
+              ))
+            )}
           </motion.div>
-        </motion.div>
+        )}
       </div>
     </div>
   );
