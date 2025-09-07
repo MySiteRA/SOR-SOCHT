@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GraduationCap, HelpCircle, X, MessageCircle, Shield } from 'lucide-react';
+import { GraduationCap, HelpCircle, X, MessageCircle, Shield, User, LogOut } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import StudentAvatar from '../components/StudentAvatar';
+import { useStudentProfile } from '../hooks/useStudentProfiles';
+import { getStudent as getStudentService } from '../services/student';
 import { getClasses } from '../lib/api';
-import type { Class } from '../lib/supabase';
+import type { Class, Student } from '../lib/supabase';
 
 interface ClassSelectionPageProps {
   onShowAdminModal: () => void;
@@ -15,15 +18,74 @@ interface ClassSelectionPageProps {
 export default function ClassSelectionPage({ onShowAdminModal }: ClassSelectionPageProps) {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const [showKeyModal, setShowKeyModal] = useState(false);
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [savedStudent, setSavedStudent] = useState<{student: Student, className: string} | null>(null);
+  
+  // Загружаем профиль студента если есть сохраненный сеанс
+  const { profile } = useStudentProfile(savedStudent?.student?.id || '');
 
   useEffect(() => {
     loadClasses();
+    checkSavedSession();
   }, []);
 
+  // Дополнительная проверка при изменении localStorage
+  useEffect(() => {
+    const handleStorageChange = () => {
+      checkSavedSession();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+  const checkSavedSession = async () => {
+    try {
+      const savedId = localStorage.getItem('studentId');
+      const savedTime = localStorage.getItem('createdAt');
+      const shouldSkipAutoLogin = localStorage.getItem('skipAutoLogin') === 'true';
+
+      if (!savedId || !savedTime || shouldSkipAutoLogin) {
+        setSavedStudent(null);
+        return;
+      }
+
+      const now = Date.now();
+      const diff = now - parseInt(savedTime, 10);
+
+      // 3 дня = 259200000 мс
+      if (diff > 259200000) {
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('createdAt');
+        localStorage.removeItem('studentDashboardData');
+        setSavedStudent(null);
+        return;
+      }
+
+      const student = await getStudentService(savedId);
+      if (student) {
+        const dashboardData = localStorage.getItem('studentDashboardData');
+        if (dashboardData) {
+          const parsed = JSON.parse(dashboardData);
+          setSavedStudent({ student, className: parsed.className });
+        } else {
+          // Если нет данных дашборда, но есть студент, попробуем найти класс
+          const classData = await getClasses();
+          const studentClass = classData.find(c => c.id === student.class_id);
+          if (studentClass) {
+            setSavedStudent({ student, className: studentClass.name });
+          }
+        }
+      } else {
+        setSavedStudent(null);
+      }
+    } catch (err) {
+      console.error('Error checking saved session:', err);
+      setSavedStudent(null);
+    }
+  };
   const loadClasses = async () => {
     try {
       setLoading(true);
@@ -45,6 +107,39 @@ export default function ClassSelectionPage({ onShowAdminModal }: ClassSelectionP
       },
       replace: false
     });
+  };
+
+  const handleStudentClick = () => {
+    if (savedStudent) {
+      // Сохраняем данные для дашборда и переходим
+      const dashboardData = { 
+        student: savedStudent.student, 
+        className: savedStudent.className 
+      };
+      localStorage.setItem('studentDashboardData', JSON.stringify(dashboardData));
+      navigate('/student-dashboard');
+    }
+  };
+
+  const getStudentDisplayName = () => {
+    if (!savedStudent) return '';
+    const nameParts = savedStudent.student.name.split(' ');
+    if (nameParts.length >= 2) {
+      return `${nameParts[0]} ${nameParts[1]}`;
+    }
+    return savedStudent.student.name;
+  };
+
+  const handleLogoutFromHeader = () => {
+    // Очищаем все данные сессии
+    localStorage.removeItem('studentId');
+    localStorage.removeItem('createdAt');
+    localStorage.removeItem('studentDashboardData');
+    localStorage.setItem('skipAutoLogin', 'true');
+    
+    // Обновляем состояние
+    setSavedStudent(null);
+    // Не перезагружаем страницу, просто обновляем состояние
   };
 
   // Обработка системной кнопки "Назад" на главной странице
@@ -75,29 +170,55 @@ export default function ClassSelectionPage({ onShowAdminModal }: ClassSelectionP
       {/* Header */}
       <header className="absolute top-0 left-0 right-0 z-40 p-4">
         <div className="flex justify-end items-center space-x-3">
-          {/* Кнопка "Как получить ключ?" */}
-          <motion.button
-            whileHover={{ scale: 1.02, y: -1 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setShowKeyModal(true)}
-            className="flex items-center space-x-2 bg-white/90 backdrop-blur-md border border-indigo-200/50 hover:border-indigo-300/70 text-indigo-700 px-4 py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
-          >
-            <HelpCircle className="w-4 h-4" />
-            <span className="text-sm font-medium hidden sm:inline">{t('help.howToGetKey')}</span>
-            <span className="text-sm font-medium sm:hidden">{t('auth.enterKey')}?</span>
-          </motion.button>
+          {savedStudent ? (
+            /* Кнопка с именем студента при наличии сеанса */
+            <div className="flex items-center space-x-2">
+              <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleStudentClick}
+              className="flex items-center space-x-3 bg-white/95 backdrop-blur-md border border-green-200/50 hover:border-green-300/70 text-green-700 px-4 py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
+            >
+              <StudentAvatar 
+                student={savedStudent.student} 
+                avatarUrl={profile?.avatar_url}
+                size="sm"
+                className="w-6 h-6"
+              />
+              <div className="text-left">
+                <div className="text-sm font-medium">{getStudentDisplayName()}</div>
+                <div className="text-xs opacity-75">{savedStudent.className}</div>
+              </div>
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            </motion.button>
+            </div>
+          ) : (
+            <>
+              {/* Кнопка "Как получить ключ?" */}
+              <motion.button
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowKeyModal(true)}
+                className="flex items-center space-x-2 bg-white/90 backdrop-blur-md border border-indigo-200/50 hover:border-indigo-300/70 text-indigo-700 px-4 py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
+              >
+                <HelpCircle className="w-4 h-4" />
+                <span className="text-sm font-medium hidden sm:inline">{t('help.howToGetKey')}</span>
+                <span className="text-sm font-medium sm:hidden">{t('auth.enterKey')}?</span>
+              </motion.button>
 
-          {/* Кнопка авторизации */}
-          <motion.button
-            whileHover={{ scale: 1.02, y: -1 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={onShowAdminModal}
-            className="flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-4 py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
-          >
-            <Shield className="w-4 h-4" />
-            <span className="text-sm font-medium hidden sm:inline">{t('admin.login')}</span>
-            <span className="text-sm font-medium sm:inline">{t('auth.login')}</span>
-          </motion.button>
+              {/* Кнопка авторизации */}
+              <motion.button
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onShowAdminModal}
+                className="flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-4 py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
+              >
+                <Shield className="w-4 h-4" />
+                <span className="text-sm font-medium hidden sm:inline">{t('admin.login')}</span>
+                <span className="text-sm font-medium sm:inline">{t('auth.login')}</span>
+              </motion.button>
+            </>
+          )}
         </div>
       </header>
       

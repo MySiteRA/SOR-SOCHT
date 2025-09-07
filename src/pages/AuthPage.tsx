@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Lock, Eye, EyeOff, CheckCircle, Loader2, ArrowLeft } from 'lucide-react';
+import { Key, Lock, Eye, EyeOff, CheckCircle, Loader2, ArrowLeft, LogOut } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import StudentAvatar from '../components/StudentAvatar';
-import LanguageSwitcher from '../components/LanguageSwitcher';
+import Header from '../components/Header';
 import { useStudentProfile } from '../hooks/useStudentProfiles';
 import { 
   validateKey, 
   validatePassword, 
   createPassword,
-  getStudent
+  getStudent,
+  getStudent as getStudentService
 } from '../lib/api';
-import { getStudent as getStudentService } from '../services/student';
 import type { Student } from '../lib/supabase';
 
 type AuthStep = 'key' | 'password' | 'create-password';
@@ -37,6 +37,7 @@ export default function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(!studentFromState);
+  const [savedStudent, setSavedStudent] = useState<{student: Student, className: string} | null>(null);
 
   // Загружаем профиль студента
   const { profile } = useStudentProfile(student?.id || '');
@@ -47,6 +48,7 @@ export default function AuthPage() {
       loadStudent();
     } else if (student) {
       // Определяем начальный шаг авторизации
+      checkSavedSession();
       determineAuthStep();
     }
   }, [studentId, student]);
@@ -69,6 +71,40 @@ export default function AuthPage() {
       navigate('/');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkSavedSession = async () => {
+    try {
+      const savedId = localStorage.getItem('studentId');
+      const savedTime = localStorage.getItem('createdAt');
+      const shouldSkipAutoLogin = localStorage.getItem('skipAutoLogin') === 'true';
+
+      if (!savedId || !savedTime || shouldSkipAutoLogin) {
+        return;
+      }
+
+      const now = Date.now();
+      const diff = now - parseInt(savedTime, 10);
+
+      // 3 дня = 259200000 мс
+      if (diff > 259200000) {
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('createdAt');
+        localStorage.removeItem('studentDashboardData');
+        return;
+      }
+
+      const savedStudentData = await getStudentService(savedId);
+      if (savedStudentData) {
+        const dashboardData = localStorage.getItem('studentDashboardData');
+        if (dashboardData) {
+          const parsed = JSON.parse(dashboardData);
+          setSavedStudent({ student: savedStudentData, className: parsed.className });
+        }
+      }
+    } catch (err) {
+      console.error('Error checking saved session:', err);
     }
   };
 
@@ -229,6 +265,17 @@ export default function AuthPage() {
     return formatted.slice(0, 14);
   };
 
+  const handleStudentClick = () => {
+    if (savedStudent) {
+      const dashboardData = { 
+        student: savedStudent.student, 
+        className: savedStudent.className 
+      };
+      localStorage.setItem('studentDashboardData', JSON.stringify(dashboardData));
+      navigate('/student-dashboard');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 flex items-center justify-center">
@@ -255,7 +302,12 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100">
-      <LanguageSwitcher showBackButton={true} onBack={handleBack} />
+      <Header 
+        onShowAdminModal={() => {}} 
+        showBackButton={true} 
+        onBack={handleBack}
+        hideButtons={!!savedStudent}
+      />
       
       <div className="container mx-auto px-4 py-12">
         {/* Messages */}

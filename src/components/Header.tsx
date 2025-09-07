@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, HelpCircle, X, MessageCircle, User } from 'lucide-react';
+import { Shield, HelpCircle, X, MessageCircle, User, LogOut } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import { getStudent as getStudentService } from '../services/student';
@@ -13,9 +13,10 @@ interface HeaderProps {
   onShowAdminModal: () => void;
   showBackButton?: boolean;
   onBack?: () => void;
+  hideButtons?: boolean;
 }
 
-export default function Header({ onShowAdminModal, showBackButton = false, onBack }: HeaderProps) {
+export default function Header({ onShowAdminModal, showBackButton = false, onBack, hideButtons = false }: HeaderProps) {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [showKeyModal, setShowKeyModal] = useState(false);
@@ -85,6 +86,18 @@ export default function Header({ onShowAdminModal, showBackButton = false, onBac
     return savedStudent.student.name;
   };
 
+  const handleLogoutFromHeader = () => {
+    // Очищаем все данные сессии
+    localStorage.removeItem('studentId');
+    localStorage.removeItem('createdAt');
+    localStorage.removeItem('studentDashboardData');
+    localStorage.setItem('skipAutoLogin', 'true');
+    
+    // Обновляем состояние
+    setSavedStudent(null);
+    window.location.reload(); // Перезагружаем страницу для обновления состояния
+  };
+
   return (
     <>
       <LanguageSwitcher showBackButton={showBackButton} onBack={onBack} />
@@ -92,50 +105,66 @@ export default function Header({ onShowAdminModal, showBackButton = false, onBac
         <div className="flex justify-end items-center space-x-3">
           {savedStudent ? (
             /* Кнопка с именем студента при наличии сеанса */
-            <motion.button
-              whileHover={{ scale: 1.02, y: -1 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleStudentClick}
-              className="flex items-center space-x-3 bg-white/95 backdrop-blur-md border border-green-200/50 hover:border-green-300/70 text-green-700 px-4 py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
-            >
-              <StudentAvatar 
-                student={savedStudent.student} 
-                avatarUrl={profile?.avatar_url}
-                size="sm"
-                className="w-6 h-6"
-              />
-              <div className="text-left">
-                <div className="text-sm font-medium">{getStudentDisplayName()}</div>
-                <div className="text-xs opacity-75">{savedStudent.className}</div>
-              </div>
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            </motion.button>
+            <div className="flex items-center space-x-2">
+              <motion.button
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleStudentClick}
+                className="flex items-center space-x-3 bg-white/95 backdrop-blur-md border border-green-200/50 hover:border-green-300/70 text-green-700 px-4 py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
+              >
+                <StudentAvatar 
+                  student={savedStudent.student} 
+                  avatarUrl={profile?.avatar_url}
+                  size="sm"
+                  className="w-6 h-6"
+                />
+                <div className="text-left">
+                  <div className="text-sm font-medium">{getStudentDisplayName()}</div>
+                  <div className="text-xs opacity-75">{savedStudent.className}</div>
+                </div>
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              </motion.button>
+              
+              {/* Кнопка выхода */}
+              <motion.button
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleLogoutFromHeader}
+                className="flex items-center justify-center w-10 h-10 bg-white/90 backdrop-blur-md border border-red-200/50 hover:border-red-300/70 text-red-600 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
+                title="Выйти из аккаунта"
+              >
+                <LogOut className="w-4 h-4" />
+              </motion.button>
+            </div>
           ) : (
-            <>
-              {/* Кнопка "Как получить ключ?" */}
-              <motion.button
-                whileHover={{ scale: 1.02, y: -1 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowKeyModal(true)}
-                className="flex items-center space-x-2 bg-white/90 backdrop-blur-md border border-indigo-200/50 hover:border-indigo-300/70 text-indigo-700 px-4 py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
-              >
-                <HelpCircle className="w-4 h-4" />
-                <span className="text-sm font-medium hidden sm:inline">{t('help.howToGetKey')}</span>
-                <span className="text-sm font-medium sm:hidden">{t('auth.enterKey')}?</span>
-              </motion.button>
+            /* Показываем кнопки только если hideButtons не установлен */
+            !hideButtons && (
+              <>
+                {/* Кнопка "Как получить ключ?" */}
+                <motion.button
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowKeyModal(true)}
+                  className="flex items-center space-x-2 bg-white/90 backdrop-blur-md border border-indigo-200/50 hover:border-indigo-300/70 text-indigo-700 px-4 py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                  <span className="text-sm font-medium hidden sm:inline">{t('help.howToGetKey')}</span>
+                  <span className="text-sm font-medium sm:hidden">{t('auth.enterKey')}?</span>
+                </motion.button>
 
-              {/* Кнопка авторизации */}
-              <motion.button
-                whileHover={{ scale: 1.02, y: -1 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={onShowAdminModal}
-                className="flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-4 py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
-              >
-                <Shield className="w-4 h-4" />
-                <span className="text-sm font-medium hidden sm:inline">{t('admin.login')}</span>
-                <span className="text-sm font-medium sm:hidden">{t('auth.login')}</span>
-              </motion.button>
-            </>
+                {/* Кнопка авторизации */}
+                <motion.button
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={onShowAdminModal}
+                  className="flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-4 py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
+                >
+                  <Shield className="w-4 h-4" />
+                  <span className="text-sm font-medium hidden sm:inline">{t('admin.login')}</span>
+                  <span className="text-sm font-medium sm:hidden">{t('auth.login')}</span>
+                </motion.button>
+              </>
+            )
           )}
         </div>
       </header>
