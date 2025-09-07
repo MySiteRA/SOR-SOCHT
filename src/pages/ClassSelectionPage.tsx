@@ -42,9 +42,23 @@ export default function ClassSelectionPage({ onShowAdminModal }: ClassSelectionP
       state: { 
         classId: classItem.id, 
         className: classItem.name 
-      } 
+      },
+      replace: false
     });
   };
+
+  // Обработка системной кнопки "Назад" на главной странице
+  React.useEffect(() => {
+    const handlePopState = () => {
+      // На главной странице закрываем приложение
+      if (window.history.length <= 1) {
+        window.close();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   if (loading) {
     return (

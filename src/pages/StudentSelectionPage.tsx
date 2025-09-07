@@ -72,17 +72,18 @@ export default function StudentSelectionPage() {
     // Очищаем флаг пропуска автологина при новом выборе студента
     localStorage.removeItem('skipAutoLogin');
     
-    navigate(`/auth/${student.id}`, { 
+    navigate(`/auth/${student.id}`, {
       state: { 
         student,
         classId,
         className
-      } 
+      },
+      replace: false
     });
   };
 
   const handleBack = () => {
-    navigate('/');
+    navigate('/', { replace: false });
   };
 
   if (loading) {

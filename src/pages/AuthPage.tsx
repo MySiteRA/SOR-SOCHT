@@ -197,26 +197,29 @@ export default function AuthPage() {
     
     // Перенаправляем в личный кабинет или на URL ученика
     if (student.url) {
+      // Очищаем историю перед внешним переходом
+      window.history.replaceState(null, '', '/student-dashboard');
       setTimeout(() => {
         window.location.href = student.url!;
       }, isAutoLogin ? 500 : 1000);
     } else {
       setTimeout(() => {
-        navigate('/student-dashboard');
+        navigate('/student-dashboard', { replace: true });
       }, isAutoLogin ? 500 : 1000);
     }
   };
 
   const handleBack = () => {
     if (classId) {
-      navigate(`/class/${classId}`, { 
+      navigate(`/class/${classId}`, {
         state: { 
           classId, 
           className 
-        } 
+        },
+        replace: false
       });
     } else {
-      navigate('/');
+      navigate('/', { replace: false });
     }
   };
 

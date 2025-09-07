@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, HelpCircle, X, MessageCircle, User } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useNavigate } from 'react-router-dom';
 import { getStudent as getStudentService } from '../services/student';
 import StudentAvatar from './StudentAvatar';
 import { useStudentProfile } from '../hooks/useStudentProfiles';
@@ -12,11 +13,11 @@ interface HeaderProps {
   onShowAdminModal: () => void;
   showBackButton?: boolean;
   onBack?: () => void;
-  onStudentLogin?: (student: Student, className: string) => void;
 }
 
-export default function Header({ onShowAdminModal, showBackButton = false, onBack, onStudentLogin }: HeaderProps) {
+export default function Header({ onShowAdminModal, showBackButton = false, onBack }: HeaderProps) {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [savedStudent, setSavedStudent] = useState<{student: Student, className: string} | null>(null);
   
@@ -64,8 +65,14 @@ export default function Header({ onShowAdminModal, showBackButton = false, onBac
   };
 
   const handleStudentClick = () => {
-    if (savedStudent && onStudentLogin) {
-      onStudentLogin(savedStudent.student, savedStudent.className);
+    if (savedStudent) {
+      // Сохраняем данные для дашборда и переходим
+      const dashboardData = { 
+        student: savedStudent.student, 
+        className: savedStudent.className 
+      };
+      localStorage.setItem('studentDashboardData', JSON.stringify(dashboardData));
+      navigate('/student-dashboard');
     }
   };
 
