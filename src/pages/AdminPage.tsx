@@ -2,16 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Key, Edit, Trash2, Copy, Plus, Calendar, Upload, FileText,
-  Users, BookOpen, Home, LogOut, X, Download, ExternalLink, Image, Minus
+  Users, BookOpen, Home, LogOut, X, Download, ExternalLink, Image, Minus, File
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
+import FileUpload from '../components/FileUpload';
+import FilePreview from '../components/FilePreview';
+import FilePreviewModal from '../components/FilePreviewModal';
 import {
   getClasses, getStudentsByClass, getStudent, getStudentKeys,
   getSubjects, getMaterialsBySubjectAndGrade, generateKey,
   revokeKey, updateStudentUrl, updateKeyExpiration,
   createMaterial, deleteMaterial, resetStudentPassword, extractGradeFromClassName
 } from '../lib/api';
+import { generateFileId, validateImageFile, validateFile, fileToDataUrl, getFileNameFromUrl, isImageFile } from '../utils/fileUtils';
 import type { Class, Student, Key as KeyType, Subject, Material } from '../lib/supabase';
 
 type AdminView = 'main' | 'classes' | 'students' | 'student-profile' | 'sor' | 'soch' | 'subjects' | 'materials';
@@ -19,6 +23,14 @@ type AdminView = 'main' | 'classes' | 'students' | 'student-profile' | 'sor' | '
 interface ContentItem {
   type: 'text' | 'link' | 'image' | 'file';
   value: string;
+}
+
+interface FileItem {
+  id: string;
+  type: 'file' | 'image';
+  name: string;
+  url: string;
+  isLocal?: boolean;
 }
 
 interface AdminPageProps {
@@ -50,6 +62,7 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
   const [showExpirationModal, setShowExpirationModal] = useState(false);
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showFilePreview, setShowFilePreview] = useState(false);
 
   // ====== Формы ======
   const [generatedKey, setGeneratedKey] = useState('');
@@ -62,6 +75,8 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
   const [materialTitle, setMaterialTitle] = useState('');
   const [enabledContentTypes, setEnabledContentTypes] = useState<Set<string>>(new Set());
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<FileItem[]>([]);
+  const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
 
   // ====== Загрузка данных ======
   useEffect(() => {
@@ -217,8 +232,59 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
     }
   };
 
+  const handleFileUpload = async (file: File, type: 'image' | 'file') => {
+    try {
+      // Валидация файла
+      const validation = type === 'image' ? validateImageFile(file) : validateFile(file);
+      if (!validation.valid) {
+        setError(validation.error || 'Ошибка валидации файла');
+        return;
+      }
+
+      // Конвертируем файл в data URL для локального хранения
+      const dataUrl = await fileToDataUrl(file);
+      
+      const fileItem: FileItem = {
+        id: generateFileId(),
+        type,
+        name: file.name,
+        url: dataUrl,
+        isLocal: true
+      };
+
+      setUploadedFiles(prev => [...prev, fileItem]);
+      setSuccess(`${type === 'image' ? 'Изображение' : 'Файл'} успешно добавлен`);
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError('Ошибка загрузки файла');
+    }
+  };
+
+  const handleUrlAdd = (url: string, type: 'image' | 'file') => {
+    const fileItem: FileItem = {
+      id: generateFileId(),
+      type,
+      name: getFileNameFromUrl(url),
+      url,
+      isLocal: false
+    };
+
+    setUploadedFiles(prev => [...prev, fileItem]);
+    setSuccess(`${type === 'image' ? 'Изображение' : 'Файл'} по ссылке добавлен`);
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
+  const handleFileRemove = (fileId: string) => {
+    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+  };
+
+  const handleFilePreview = (file: FileItem) => {
+    setPreviewFile(file);
+    setShowFilePreview(true);
+  };
+
   const handleAddMaterial = async () => {
-    if (!materialTitle.trim() || !selectedSubject || !selectedGrade || contentItems.length === 0) {
+    if (!materialTitle.trim() || !selectedSubject || !selectedGrade || (contentItems.length === 0 && uploadedFiles.length === 0)) {
       setError('Заполните все обязательные поля');
       return;
     }
@@ -231,12 +297,21 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
     }
 
     try {
+      // Объединяем обычные элементы контента с загруженными файлами
+      const allContentItems = [
+        ...contentItems,
+        ...uploadedFiles.map(file => ({
+          type: file.type === 'image' ? 'image' : 'file' as 'text' | 'link' | 'image' | 'file',
+          value: file.url
+        }))
+      ];
+
       // Создаем один материал с JSON контентом
       await createMaterial(
         selectedSubject.id,
         materialTitle.trim(),
         currentSection,
-        contentItems,
+        allContentItems,
         selectedGrade
       );
 
@@ -313,6 +388,7 @@ setStudents(prevStudents =>
     setMaterialTitle('');
     setEnabledContentTypes(new Set());
     setContentItems([]);
+    setUploadedFiles([]);
   };
 
   const handleContentTypeToggle = (type: string) => {
@@ -406,10 +482,12 @@ setStudents(prevStudents =>
     setShowExpirationModal(false);
     setShowAddMaterialModal(false);
     setShowImageModal(false);
+    setShowFilePreview(false);
     setGeneratedKey('');
     setKeyExpiration('');
     setSelectedKey(null);
     setSelectedImage('');
+    setPreviewFile(null);
     resetMaterialForm();
     setError(null);
     setSuccess(null);
@@ -1193,6 +1271,26 @@ setStudents(prevStudents =>
                               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               placeholder="Введите текст"
                             />
+                          ) : type === 'image' ? (
+                            <div className="space-y-4">
+                              <FileUpload
+                                onFileSelect={(file) => handleFileUpload(file, 'image')}
+                                onUrlAdd={(url) => handleUrlAdd(url, 'image')}
+                                accept="image/*"
+                                type="image"
+                                placeholder="https://example.com/image.jpg"
+                              />
+                            </div>
+                          ) : type === 'file' ? (
+                            <div className="space-y-4">
+                              <FileUpload
+                                onFileSelect={(file) => handleFileUpload(file, 'file')}
+                                onUrlAdd={(url) => handleUrlAdd(url, 'file')}
+                                accept="*/*"
+                                type="file"
+                                placeholder="https://example.com/file.pdf"
+                              />
+                            </div>
                           ) : (
                             <input
                               type={type === 'link' ? 'url' : 'text'}
@@ -1222,13 +1320,20 @@ setStudents(prevStudents =>
                 </div>
               );
             })}
+            
+            {/* File Preview */}
+            <FilePreview
+              files={uploadedFiles}
+              onRemove={handleFileRemove}
+              onPreview={handleFilePreview}
+            />
 
             <button
               onClick={handleAddMaterial}
               disabled={
                 !materialTitle.trim() || 
                 !selectedGrade ||
-                contentItems.length === 0 ||
+                (contentItems.length === 0 && uploadedFiles.length === 0) ||
                 contentItems.some(item => !item.value.trim())
               }
               className={`w-full py-2 px-4 rounded-lg text-white font-medium transition-all duration-300 disabled:bg-gray-300 disabled:cursor-not-allowed ${
@@ -1255,6 +1360,13 @@ setStudents(prevStudents =>
             />
           </div>
         </Modal>
+        
+        {/* File Preview Modal */}
+        <FilePreviewModal
+          isOpen={showFilePreview}
+          onClose={() => setShowFilePreview(false)}
+          file={previewFile}
+        />
       </div>
     </div>
   );

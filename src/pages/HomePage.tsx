@@ -381,6 +381,7 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
         onShowAdminModal={onShowAdminModal} 
         showBackButton={step !== 'classes'} 
         onBack={handleBack}
+        onStudentLogin={onStudentLogin}
       />
       
       <div className="container mx-auto px-4 py-12">

@@ -95,3 +95,35 @@ button, a, input, select, textarea {
     opacity: 0.7;
   }
 }
+
+/* Улучшение качества изображений */
+img {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  image-rendering: high-quality;
+}
+
+/* Для изображений в модальных окнах */
+.high-quality-image {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  image-rendering: high-quality;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Анимации для выбора источника */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.source-option {
+  animation: slideInUp 0.3s ease-out;
+}

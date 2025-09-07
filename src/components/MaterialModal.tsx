@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, ExternalLink, Image, Download, Calendar, BookOpen } from 'lucide-react';
+import { X, FileText, ExternalLink, Image, Download, Calendar, BookOpen, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Material } from '../lib/supabase';
 
 interface MaterialModalProps {
@@ -11,6 +11,8 @@ interface MaterialModalProps {
 
 export default function MaterialModal({ isOpen, onClose, material }: MaterialModalProps) {
   const [activeTab, setActiveTab] = useState<string>('');
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [imageZoom, setImageZoom] = useState(1);
 
   // Парсим JSON контент
   const contentItems = useMemo(() => {
@@ -74,7 +76,21 @@ export default function MaterialModal({ isOpen, onClose, material }: MaterialMod
   };
 
   const handleImageClick = (imageUrl: string) => {
-    window.open(imageUrl, '_blank');
+    setZoomedImage(imageUrl);
+    setImageZoom(1);
+  };
+
+  const closeZoomedImage = () => {
+    setZoomedImage(null);
+    setImageZoom(1);
+  };
+
+  const handleZoomIn = () => {
+    setImageZoom(prev => Math.min(prev + 0.5, 3));
+  };
+
+  const handleZoomOut = () => {
+    setImageZoom(prev => Math.max(prev - 0.5, 0.5));
   };
 
   if (!isOpen) return null;
@@ -238,7 +254,12 @@ export default function MaterialModal({ isOpen, onClose, material }: MaterialMod
                         <img
                           src={item.value}
                           alt={`Изображение ${index + 1}`}
-                          className="w-full max-h-96 object-contain rounded-lg hover:opacity-90 transition-opacity"
+                          className="w-full max-h-[600px] object-contain rounded-lg hover:opacity-90 transition-opacity"
+                          style={{ 
+                            imageRendering: 'high-quality',
+                            imageRendering: '-webkit-optimize-contrast',
+                            cursor: 'zoom-in'
+                          }}
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.style.display = 'none';
@@ -252,6 +273,11 @@ export default function MaterialModal({ isOpen, onClose, material }: MaterialMod
                             }
                           }}
                         />
+                        <div className="mt-2 text-center">
+                          <p className="text-xs text-gray-500">
+                            Нажмите для увеличения
+                          </p>
+                        </div>
                       </motion.div>
                     ))}
                   </motion.div>
@@ -293,6 +319,86 @@ export default function MaterialModal({ isOpen, onClose, material }: MaterialMod
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Image Zoom Modal */}
+      <AnimatePresence>
+        {zoomedImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 z-[60]"
+            onClick={closeZoomedImage}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-[95vw] max-h-[95vh] overflow-auto bg-white rounded-2xl shadow-2xl"
+            >
+              {/* Controls */}
+              <div className="absolute top-4 right-4 z-10 flex items-center space-x-2 bg-black bg-opacity-50 rounded-xl p-2">
+                <button
+                  onClick={handleZoomOut}
+                  disabled={imageZoom <= 0.5}
+                  className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Уменьшить"
+                >
+                  <ZoomOut className="w-5 h-5" />
+                </button>
+                
+                <span className="text-white text-sm font-medium px-2">
+                  {Math.round(imageZoom * 100)}%
+                </span>
+                
+                <button
+                  onClick={handleZoomIn}
+                  disabled={imageZoom >= 3}
+                  className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Увеличить"
+                >
+                  <ZoomIn className="w-5 h-5" />
+                </button>
+                
+                <button
+                  onClick={closeZoomedImage}
+                  className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                  title="Закрыть"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Image */}
+              <div className="p-4">
+                <img
+                  src={zoomedImage}
+                  alt="Увеличенное изображение"
+                  className="max-w-none transition-transform duration-300"
+                  style={{ 
+                    transform: `scale(${imageZoom})`,
+                    imageRendering: 'high-quality',
+                    imageRendering: '-webkit-optimize-contrast'
+                  }}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                      parent.innerHTML = `
+                        <div class="flex items-center justify-center h-64 bg-gray-100 rounded-lg">
+                          <span class="text-gray-500">Не удалось загрузить изображение</span>
+                        </div>
+                      `;
+                    }
+                  }}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AnimatePresence>
   );
 }
