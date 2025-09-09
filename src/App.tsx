@@ -1,18 +1,11 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { LanguageProvider } from './contexts/LanguageContext';
 import HomePage from './pages/HomePage';
 import AdminPage from './pages/AdminPage';
 import AdminStudentsPage from './pages/AdminStudentsPage';
 import StudentDashboardPage from './pages/StudentDashboardPage';
 import StudentProfilePage from './pages/StudentProfilePage';
-import ClassSelectionPage from './pages/ClassSelectionPage';
-import StudentSelectionPage from './pages/StudentSelectionPage';
-import AuthPage from './pages/AuthPage';
-import StudentSorPage from './pages/StudentSorPage';
-import StudentSochPage from './pages/StudentSochPage';
-import StudentMaterialsPage from './pages/StudentMaterialsPage';
-import ProtectedRoute from './components/ProtectedRoute';
 import Modal from './components/Modal';
 import { validateAdminCredentials } from './lib/api';
 import { Lock } from 'lucide-react';
@@ -21,7 +14,6 @@ import { useLanguage } from './contexts/LanguageContext';
 function AppContent() {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const location = useLocation();
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
     return localStorage.getItem('adminLoggedIn') === 'true';
   });
@@ -31,18 +23,11 @@ function AppContent() {
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState<string | null>(null);
 
-  // Управление историей браузера для корректной работы кнопки "Назад"
-  React.useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
-      // Если пользователь на главной странице и нажал "Назад", закрываем приложение
-      if (location.pathname === '/' && window.history.length <= 1) {
-        window.close();
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [location.pathname]);
+  // Состояние для студенческого дашборда
+  const [studentData, setStudentData] = useState<{student: any, className: string} | null>(() => {
+    const saved = localStorage.getItem('studentDashboardData');
+    return saved ? JSON.parse(saved) : null;
+  });
 
   const handleAdminLoginSuccess = () => {
     setIsAdminLoggedIn(true);
@@ -57,20 +42,15 @@ function AppContent() {
   const handleAdminLogout = () => {
     setIsAdminLoggedIn(false);
     localStorage.removeItem('adminLoggedIn');
-    // Очищаем историю и перенаправляем на главную
-    window.history.replaceState(null, '', '/');
     navigate('/');
   };
 
-  const handleStudentLogout = () => {
-    // Очищаем все данные сессии
-    localStorage.removeItem('studentDashboardData');
-    localStorage.setItem('skipAutoLogin', 'true');
-    // Очищаем историю и перенаправляем на главную
-    window.history.replaceState(null, '', '/');
-    navigate('/', { replace: true });
+  const handleStudentLogin = (student: any, className: string) => {
+    const dashboardData = { student, className };
+    setStudentData(dashboardData);
+    localStorage.setItem('studentDashboardData', JSON.stringify(dashboardData));
+    navigate('/student-dashboard');
   };
-
   const handleAdminSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -91,78 +71,58 @@ function AppContent() {
   return (
     <>
       <Routes>
-        {/* Публичные страницы */}
-        <Route path="/" element={<ClassSelectionPage onShowAdminModal={() => setShowAdminModal(true)} />} />
-        <Route path="/class/:classId" element={<StudentSelectionPage />} />
-        <Route path="/auth/:studentId" element={<AuthPage />} />
-        
-        {/* Студенческие страницы */}
+        <Route 
+          path="/" 
+          element={
+            <HomePage 
+              onShowAdminModal={() => setShowAdminModal(true)} 
+              onStudentLogin={handleStudentLogin}
+            />
+          } 
+        />
         <Route 
           path="/student-dashboard" 
           element={
-            <ProtectedRoute requiresStudentSession>
-              <StudentDashboardPage />
-            </ProtectedRoute>
+            studentData ? (
+              <StudentDashboardPage 
+                student={studentData.student} 
+                className={studentData.className}
+              />
+            ) : (
+              <Navigate to="/" replace />
+            )
           } 
         />
         <Route 
           path="/student-profile" 
           element={
-            <ProtectedRoute requiresStudentSession>
-              <StudentProfilePage />
-            </ProtectedRoute>
+            studentData ? (
+              <StudentProfilePage 
+                student={studentData.student} 
+                className={studentData.className}
+              />
+            ) : (
+              <Navigate to="/" replace />
+            )
           } 
         />
-        <Route 
-          path="/student-sor" 
-          element={
-            <ProtectedRoute requiresStudentSession>
-              <StudentSorPage />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/student-soch" 
-          element={
-            <ProtectedRoute requiresStudentSession>
-              <StudentSochPage />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/student-sor-materials/:subjectId" 
-          element={
-            <ProtectedRoute requiresStudentSession>
-              <StudentMaterialsPage />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/student-soch-materials/:subjectId" 
-          element={
-            <ProtectedRoute requiresStudentSession>
-              <StudentMaterialsPage />
-            </ProtectedRoute>
-          } 
-        />
-        
-        {/* Админские страницы */}
         <Route 
           path="/admin" 
           element={
-            <ProtectedRoute requiresAdminSession>
+            isAdminLoggedIn ? (
               showStudentsPage ? (
                 <AdminStudentsPage onBack={() => setShowStudentsPage(false)} />
               ) : (
-                <AdminPage
+                <AdminPage 
                   onLogout={handleAdminLogout} 
                   onShowStudents={() => setShowStudentsPage(true)}
                 />
               )
-            </ProtectedRoute>
+            ) : (
+              <Navigate to="/" replace />
+            )
           } 
         />
-        
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

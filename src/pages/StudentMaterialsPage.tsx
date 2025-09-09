@@ -71,26 +71,23 @@ export default function StudentMaterialsPage() {
 
   const handleBack = () => {
     if (type === 'SOR') {
-      navigate('/student-sor', { replace: false });
+      navigate('/student-sor');
     } else {
-      navigate('/student-soch', { replace: false });
+      navigate('/student-soch');
     }
   };
 
   const handleLogout = () => {
     localStorage.removeItem('studentDashboardData');
-    localStorage.setItem('skipAutoLogin', 'true');
-    window.history.replaceState(null, '', '/');
-    navigate('/', { replace: true });
+    navigate('/');
   };
 
   const handleForgetSession = () => {
     localStorage.removeItem('studentId');
     localStorage.removeItem('createdAt');
     localStorage.removeItem('studentDashboardData');
-    localStorage.removeItem('skipAutoLogin');
-    window.history.replaceState(null, '', '/');
-    navigate('/', { replace: true });
+    localStorage.removeItem('shouldAutoLogin');
+    navigate('/');
   };
 
   const handleProfileClick = () => {

@@ -18,47 +18,32 @@ import {
 import { extractGradeFromClassName } from '../lib/api';
 import type { Student, Subject, Material } from '../lib/supabase';
 
-export default function StudentSorPage() {
+interface StudentSorPageProps {
+  student: Student;
+  className: string;
+}
+
+export default function StudentSorPage({ student, className }: StudentSorPageProps) {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const [student, setStudent] = useState<Student | null>(null);
-  const [className, setClassName] = useState<string>('');
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  const [showMaterialModal, setShowMaterialModal] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Загружаем профиль студента
-  const { profile: studentProfile } = useStudentProfile(student?.id || '');
+  const { profile: studentProfile } = useStudentProfile(student.id);
 
   useEffect(() => {
-    loadStudentData();
+    loadSubjects();
   }, []);
-
-  const loadStudentData = async () => {
-    try {
-      setLoading(true);
-      const dashboardData = localStorage.getItem('studentDashboardData');
-      
-      if (!dashboardData) {
-        navigate('/', { replace: true });
-        return;
-      }
-      
-      const parsed = JSON.parse(dashboardData);
-      setStudent(parsed.student);
-      setClassName(parsed.className);
-      
-      // Загружаем предметы
-      await loadSubjects();
-    } catch (err) {
-      navigate('/', { replace: true });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const loadSubjects = async () => {
     try {
+      setLoading(true);
       const { data: subjects, error } = await supabase
         .from("subjects")
         .select("*")
@@ -69,36 +54,33 @@ export default function StudentSorPage() {
       setSubjects(subjects || []);
     } catch (err) {
       setError('Ошибка загрузки предметов');
+    } finally {
+      setLoading(false);
     }
   };
 
   const loadSubjectMaterials = (subject: Subject) => {
-    if (student) {
-      navigate(`/student-sor-materials/${subject.id}`, { 
-        state: { 
-          student, 
-          className, 
-          subject,
-          type: 'SOR'
-        } 
-      });
-    }
+    navigate(`/student-sor-materials/${subject.id}`, { 
+      state: { 
+        student, 
+        className, 
+        subject,
+        type: 'SOR'
+      } 
+    });
   };
 
   const handleLogout = () => {
     localStorage.removeItem('studentDashboardData');
-    localStorage.setItem('skipAutoLogin', 'true');
-    window.history.replaceState(null, '', '/');
-    navigate('/', { replace: true });
+    navigate('/');
   };
 
   const handleForgetSession = () => {
     localStorage.removeItem('studentId');
     localStorage.removeItem('createdAt');
     localStorage.removeItem('studentDashboardData');
-    localStorage.removeItem('skipAutoLogin');
-    window.history.replaceState(null, '', '/');
-    navigate('/', { replace: true });
+    localStorage.removeItem('shouldAutoLogin');
+    navigate('/');
   };
 
   const handleProfileClick = () => {
@@ -106,25 +88,12 @@ export default function StudentSorPage() {
   };
 
   const getStudentName = () => {
-    if (!student) return '';
     const nameParts = student.name.split(' ');
     if (nameParts.length >= 2) {
       return `${nameParts[0]} ${nameParts[1]}`;
     }
     return student.name;
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
-  if (!student) {
-    return null;
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
