@@ -15,14 +15,11 @@ import type { Student, StudentProfile, LoginSession } from '../lib/supabase';
 
 type ProfileTab = 'settings' | 'security';
 
-interface StudentProfilePageProps {
-  student: Student;
-  className: string;
-}
-
-export default function StudentProfilePage({ student, className }: StudentProfilePageProps) {
+export default function StudentProfilePage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const [student, setStudent] = useState<Student | null>(null);
+  const [className, setClassName] = useState<string>('');
   const [activeTab, setActiveTab] = useState<ProfileTab>('settings');
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [loginSessions, setLoginSessions] = useState<LoginSession[]>([]);
@@ -45,16 +42,38 @@ export default function StudentProfilePage({ student, className }: StudentProfil
   const [passwordLoading, setPasswordLoading] = useState(false);
 
   useEffect(() => {
-    loadProfileData();
+    loadStudentData();
   }, []);
 
-  const loadProfileData = async () => {
+  const loadStudentData = async () => {
     try {
       setLoading(true);
+      const dashboardData = localStorage.getItem('studentDashboardData');
+      
+      if (!dashboardData) {
+        navigate('/', { replace: true });
+        return;
+      }
+      
+      const parsed = JSON.parse(dashboardData);
+      setStudent(parsed.student);
+      setClassName(parsed.className);
+      
+      // Загружаем данные профиля
+      await loadProfileData(parsed.student.id);
+    } catch (err) {
+      navigate('/', { replace: true });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadProfileData = async (studentId: string) => {
+    try {
       setError(null);
       
       // Загружаем профиль
-      const profileData = await getStudentProfile(student.id);
+      const profileData = await getStudentProfile(studentId);
       setProfile(profileData);
       
       if (profileData?.avatar_url) {
@@ -62,16 +81,16 @@ export default function StudentProfilePage({ student, className }: StudentProfil
       }
       
       // Загружаем сессии входа
-      const sessionsData = await getStudentLoginSessions(student.id, 5);
+      const sessionsData = await getStudentLoginSessions(studentId, 5);
       setLoginSessions(sessionsData);
     } catch (err) {
       setError('Ошибка загрузки данных профиля');
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!student) return;
+    
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -107,7 +126,7 @@ export default function StudentProfilePage({ student, className }: StudentProfil
       });
 
       await updateStudentAvatar(student.id, dataUrl);
-      await loadProfileData(); // Перезагружаем данные
+      await loadProfileData(student.id); // Перезагружаем данные
       
       setSuccess('Аватар успешно обновлен');
       setTimeout(() => setSuccess(null), 3000);
@@ -119,6 +138,8 @@ export default function StudentProfilePage({ student, className }: StudentProfil
   };
 
   const handlePasswordReset = async () => {
+    if (!student) return;
+    
     if (!confirm('Вы уверены, что хотите сбросить пароль? После сброса вам потребуется новый ключ для входа.')) {
       return;
     }
@@ -139,6 +160,8 @@ export default function StudentProfilePage({ student, className }: StudentProfil
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
+    if (!student) return;
+    
     e.preventDefault();
     
     if (newPassword.length < 4) {
@@ -202,6 +225,7 @@ export default function StudentProfilePage({ student, className }: StudentProfil
   };
 
   const getStudentName = () => {
+    if (!student) return '';
     const nameParts = student.name.split(' ');
     if (nameParts.length >= 2) {
       return `${nameParts[0]} ${nameParts[1]}`;
@@ -210,6 +234,7 @@ export default function StudentProfilePage({ student, className }: StudentProfil
   };
 
   const getStudentInitials = () => {
+    if (!student) return '';
     return student.name.split(' ').map(n => n[0]).slice(0, 2).join('');
   };
 
@@ -219,6 +244,10 @@ export default function StudentProfilePage({ student, className }: StudentProfil
         <LoadingSpinner />
       </div>
     );
+  }
+
+  if (!student) {
+    return null;
   }
 
   return (
@@ -389,7 +418,7 @@ export default function StudentProfilePage({ student, className }: StudentProfil
                                 setAvatarLoading(true);
                                 await updateStudentAvatar(student.id, '');
                                 setAvatarPreview(null);
-                                await loadProfileData();
+                                await loadProfileData(student.id);
                                 setSuccess('Аватар удален');
                                 setTimeout(() => setSuccess(null), 3000);
                               } catch (err) {

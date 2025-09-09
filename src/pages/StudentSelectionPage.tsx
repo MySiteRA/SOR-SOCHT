@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, ArrowLeft } from 'lucide-react';
+import { User, ArrowLeft, LogOut } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import StudentAvatar from '../components/StudentAvatar';
-import LanguageSwitcher from '../components/LanguageSwitcher';
+import Header from '../components/Header';
 import { useStudentProfiles } from '../hooks/useStudentProfiles';
-import { getStudentsByClass } from '../lib/api';
+import { getStudentsByClass, getStudent as getStudentService } from '../lib/api';
 import type { Student } from '../lib/supabase';
 
 export default function StudentSelectionPage() {
@@ -23,6 +23,7 @@ export default function StudentSelectionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [savedStudent, setSavedStudent] = useState<{student: Student, className: string} | null>(null);
 
   // Загружаем профили студентов
   const studentIds = students.map(s => s.id);
@@ -32,6 +33,7 @@ export default function StudentSelectionPage() {
   useEffect(() => {
     const savedId = localStorage.getItem('studentId');
     const savedTime = localStorage.getItem('createdAt');
+    checkSavedSession();
 
     if (savedId && savedTime) {
       const now = Date.now();
@@ -44,6 +46,40 @@ export default function StudentSelectionPage() {
       }
     }
   }, []);
+
+  const checkSavedSession = async () => {
+    try {
+      const savedId = localStorage.getItem('studentId');
+      const savedTime = localStorage.getItem('createdAt');
+      const shouldSkipAutoLogin = localStorage.getItem('skipAutoLogin') === 'true';
+
+      if (!savedId || !savedTime || shouldSkipAutoLogin) {
+        return;
+      }
+
+      const now = Date.now();
+      const diff = now - parseInt(savedTime, 10);
+
+      // 3 дня = 259200000 мс
+      if (diff > 259200000) {
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('createdAt');
+        localStorage.removeItem('studentDashboardData');
+        return;
+      }
+
+      const student = await getStudentService(savedId);
+      if (student) {
+        const dashboardData = localStorage.getItem('studentDashboardData');
+        if (dashboardData) {
+          const parsed = JSON.parse(dashboardData);
+          setSavedStudent({ student, className: parsed.className });
+        }
+      }
+    } catch (err) {
+      console.error('Error checking saved session:', err);
+    }
+  };
 
   useEffect(() => {
     if (classId) {
@@ -72,17 +108,29 @@ export default function StudentSelectionPage() {
     // Очищаем флаг пропуска автологина при новом выборе студента
     localStorage.removeItem('skipAutoLogin');
     
-    navigate(`/auth/${student.id}`, { 
+    navigate(`/auth/${student.id}`, {
       state: { 
         student,
         classId,
         className
-      } 
+      },
+      replace: false
     });
   };
 
   const handleBack = () => {
-    navigate('/');
+    navigate('/', { replace: false });
+  };
+
+  const handleStudentClick = () => {
+    if (savedStudent) {
+      const dashboardData = { 
+        student: savedStudent.student, 
+        className: savedStudent.className 
+      };
+      localStorage.setItem('studentDashboardData', JSON.stringify(dashboardData));
+      navigate('/student-dashboard');
+    }
   };
 
   if (loading) {
@@ -95,7 +143,12 @@ export default function StudentSelectionPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100">
-      <LanguageSwitcher showBackButton={true} onBack={handleBack} />
+      <Header 
+        onShowAdminModal={() => {}} 
+        showBackButton={true} 
+        onBack={handleBack}
+        hideButtons={!!savedStudent}
+      />
       
       <div className="container mx-auto px-4 py-12">
         {/* Messages */}
