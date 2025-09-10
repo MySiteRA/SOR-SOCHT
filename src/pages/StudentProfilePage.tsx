@@ -15,14 +15,10 @@ import type { Student, StudentProfile, LoginSession } from '../lib/supabase';
 
 type ProfileTab = 'settings' | 'security';
 
-interface StudentProfilePageProps {
-  student: Student;
-  className: string;
-}
-
-export default function StudentProfilePage({ student, className }: StudentProfilePageProps) {
+export default function StudentProfilePage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const [studentData, setStudentData] = useState<{student: Student, className: string} | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>('settings');
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [loginSessions, setLoginSessions] = useState<LoginSession[]>([]);
@@ -45,16 +41,26 @@ export default function StudentProfilePage({ student, className }: StudentProfil
   const [passwordLoading, setPasswordLoading] = useState(false);
 
   useEffect(() => {
+    const saved = localStorage.getItem('studentDashboardData');
+    if (saved) {
+      setStudentData(JSON.parse(saved));
+    } else {
+      navigate('/', { replace: true });
+      return;
+    }
+    
     loadProfileData();
   }, []);
 
   const loadProfileData = async () => {
+    if (!studentData) return;
+    
     try {
       setLoading(true);
       setError(null);
       
       // Загружаем профиль
-      const profileData = await getStudentProfile(student.id);
+      const profileData = await getStudentProfile(studentData.student.id);
       setProfile(profileData);
       
       if (profileData?.avatar_url) {
@@ -62,7 +68,7 @@ export default function StudentProfilePage({ student, className }: StudentProfil
       }
       
       // Загружаем сессии входа
-      const sessionsData = await getStudentLoginSessions(student.id, 5);
+      const sessionsData = await getStudentLoginSessions(studentData.student.id, 5);
       setLoginSessions(sessionsData);
     } catch (err) {
       setError('Ошибка загрузки данных профиля');
@@ -72,6 +78,8 @@ export default function StudentProfilePage({ student, className }: StudentProfil
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!studentData) return;
+    
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -106,7 +114,7 @@ export default function StudentProfilePage({ student, className }: StudentProfil
         reader.readAsDataURL(file);
       });
 
-      await updateStudentAvatar(student.id, dataUrl);
+      await updateStudentAvatar(studentData.student.id, dataUrl);
       await loadProfileData(); // Перезагружаем данные
       
       setSuccess('Аватар успешно обновлен');
@@ -119,6 +127,8 @@ export default function StudentProfilePage({ student, className }: StudentProfil
   };
 
   const handlePasswordReset = async () => {
+    if (!studentData) return;
+    
     if (!confirm('Вы уверены, что хотите сбросить пароль? После сброса вам потребуется новый ключ для входа.')) {
       return;
     }
@@ -127,7 +137,7 @@ export default function StudentProfilePage({ student, className }: StudentProfil
       setPasswordLoading(true);
       setError(null);
       
-      await resetStudentPassword(student.id);
+      await resetStudentPassword(studentData.student.id);
       
       setSuccess('Пароль успешно сброшен. Теперь вам потребуется новый ключ для входа.');
       setTimeout(() => setSuccess(null), 5000);
@@ -139,6 +149,8 @@ export default function StudentProfilePage({ student, className }: StudentProfil
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
+    if (!studentData) return;
+    
     e.preventDefault();
     
     if (newPassword.length < 4) {
@@ -155,7 +167,7 @@ export default function StudentProfilePage({ student, className }: StudentProfil
       setPasswordLoading(true);
       setError(null);
       
-      await changeStudentPassword(student.id, oldPassword, newPassword);
+      await changeStudentPassword(studentData.student.id, oldPassword, newPassword);
       
       setSuccess('Пароль успешно изменен');
       setShowPasswordForm(false);
@@ -202,15 +214,17 @@ export default function StudentProfilePage({ student, className }: StudentProfil
   };
 
   const getStudentName = () => {
-    const nameParts = student.name.split(' ');
+    if (!studentData) return '';
+    const nameParts = studentData.student.name.split(' ');
     if (nameParts.length >= 2) {
       return `${nameParts[0]} ${nameParts[1]}`;
     }
-    return student.name;
+    return studentData.student.name;
   };
 
   const getStudentInitials = () => {
-    return student.name.split(' ').map(n => n[0]).slice(0, 2).join('');
+    if (!studentData) return '';
+    return studentData.student.name.split(' ').map(n => n[0]).slice(0, 2).join('');
   };
 
   if (loading) {
@@ -220,6 +234,12 @@ export default function StudentProfilePage({ student, className }: StudentProfil
       </div>
     );
   }
+
+  if (!studentData) {
+    return null;
+  }
+
+  const { student, className } = studentData;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -385,9 +405,10 @@ export default function StudentProfilePage({ student, className }: StudentProfil
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={async () => {
+                              if (!studentData) return;
                               try {
                                 setAvatarLoading(true);
-                                await updateStudentAvatar(student.id, '');
+                                await updateStudentAvatar(studentData.student.id, '');
                                 setAvatarPreview(null);
                                 await loadProfileData();
                                 setSuccess('Аватар удален');

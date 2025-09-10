@@ -1,24 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, HelpCircle, X, MessageCircle, User } from 'lucide-react';
+import { Shield, HelpCircle, X, MessageCircle, User, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getStudent as getStudentService } from '../services/student';
 import StudentAvatar from './StudentAvatar';
 import { useStudentProfile } from '../hooks/useStudentProfiles';
 import LanguageSwitcher from './LanguageSwitcher';
+import { getClasses } from '../lib/api';
 import type { Student } from '../lib/supabase';
 
 interface HeaderProps {
   onShowAdminModal: () => void;
-  showBackButton?: boolean;
-  onBack?: () => void;
   onStudentLogin?: (student: Student, className: string) => void;
 }
 
-export default function Header({ onShowAdminModal, showBackButton = false, onBack, onStudentLogin }: HeaderProps) {
+export default function Header({ onShowAdminModal, onStudentLogin }: HeaderProps) {
   const { t } = useLanguage();
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [savedStudent, setSavedStudent] = useState<{student: Student, className: string} | null>(null);
+  const [loading, setLoading] = useState(true);
   
   // Загружаем профиль студента если есть сохраненный сеанс
   const { profile } = useStudentProfile(savedStudent?.student?.id || '');
@@ -29,11 +29,13 @@ export default function Header({ onShowAdminModal, showBackButton = false, onBac
 
   const checkSavedSession = async () => {
     try {
+      setLoading(true);
       const savedId = localStorage.getItem('studentId');
       const savedTime = localStorage.getItem('createdAt');
       const shouldSkipAutoLogin = localStorage.getItem('skipAutoLogin') === 'true';
 
       if (!savedId || !savedTime || shouldSkipAutoLogin) {
+        setLoading(false);
         return;
       }
 
@@ -45,21 +47,31 @@ export default function Header({ onShowAdminModal, showBackButton = false, onBac
         localStorage.removeItem('studentId');
         localStorage.removeItem('createdAt');
         localStorage.removeItem('studentDashboardData');
+        setLoading(false);
         return;
       }
 
       const student = await getStudentService(savedId);
       if (student) {
-        // Здесь нужно получить название класса
-        // Для простоты используем сохраненные данные дашборда
-        const dashboardData = localStorage.getItem('studentDashboardData');
-        if (dashboardData) {
-          const parsed = JSON.parse(dashboardData);
-          setSavedStudent({ student, className: parsed.className });
+        // Загружаем классы для получения названия класса
+        const classes = await getClasses();
+        const classData = classes.find(c => c.id === student.class_id);
+        
+        if (classData) {
+          setSavedStudent({ student, className: classData.name });
+        } else {
+          // Если класс не найден, пробуем использовать сохраненные данные дашборда
+          const dashboardData = localStorage.getItem('studentDashboardData');
+          if (dashboardData) {
+            const parsed = JSON.parse(dashboardData);
+            setSavedStudent({ student, className: parsed.className || 'Неизвестный класс' });
+          }
         }
       }
     } catch (err) {
       console.error('Error checking saved session:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -78,18 +90,24 @@ export default function Header({ onShowAdminModal, showBackButton = false, onBac
     return savedStudent.student.name;
   };
 
+  const getStudentShortName = () => {
+    if (!savedStudent) return '';
+    const nameParts = savedStudent.student.name.split(' ');
+    return nameParts.length >= 2 ? `${nameParts[0]} ${nameParts[1]}` : savedStudent.student.name;
+  };
+
   return (
     <>
-      <LanguageSwitcher showBackButton={showBackButton} onBack={onBack} />
+      <LanguageSwitcher />
       <header className="absolute top-0 left-0 right-0 z-40 p-4">
         <div className="flex justify-end items-center space-x-3">
-          {savedStudent ? (
-            /* Кнопка с именем студента при наличии сеанса */
+          {!loading && savedStudent ? (
+            /* Кнопка с именем студента при наличии сохраненной сессии */
             <motion.button
               whileHover={{ scale: 1.02, y: -1 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleStudentClick}
-              className="flex items-center space-x-3 bg-white/95 backdrop-blur-md border border-green-200/50 hover:border-green-300/70 text-green-700 px-4 py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
+              className="flex items-center space-x-3 bg-white/95 backdrop-blur-md border border-green-200/50 hover:border-green-300/70 text-green-700 px-4 py-3 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl group"
             >
               <StudentAvatar 
                 student={savedStudent.student} 
@@ -98,12 +116,15 @@ export default function Header({ onShowAdminModal, showBackButton = false, onBac
                 className="w-6 h-6"
               />
               <div className="text-left">
-                <div className="text-sm font-medium">{getStudentDisplayName()}</div>
+                <div className="text-sm font-semibold">{getStudentShortName()}</div>
                 <div className="text-xs opacity-75">{savedStudent.className}</div>
               </div>
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <ChevronRight className="w-4 h-4 opacity-60 group-hover:opacity-100 transition-opacity" />
+              </div>
             </motion.button>
-          ) : (
+          ) : !loading ? (
             <>
               {/* Кнопка "Как получить ключ?" */}
               <motion.button
@@ -129,6 +150,16 @@ export default function Header({ onShowAdminModal, showBackButton = false, onBac
                 <span className="text-sm font-medium sm:hidden">{t('auth.login')}</span>
               </motion.button>
             </>
+          ) : (
+            /* Показываем индикатор загрузки пока проверяем сессию */
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex items-center space-x-2 bg-white/90 backdrop-blur-md border border-gray-200/50 px-4 py-3 rounded-xl shadow-lg"
+            >
+              <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-sm text-gray-600">Проверка сессии...</span>
+            </motion.div>
           )}
         </div>
       </header>

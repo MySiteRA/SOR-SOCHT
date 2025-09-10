@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, ArrowLeft } from 'lucide-react';
+import { User } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -49,7 +49,7 @@ export default function StudentSelectionPage() {
     if (classId) {
       loadStudents();
     } else {
-      navigate('/');
+      navigate('/', { replace: true });
     }
   }, [classId]);
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   Search, Download, Copy, Users, CheckCircle, XCircle, 
   ExternalLink, ArrowLeft, RefreshCw, Loader2, ChevronDown, ChevronRight
@@ -12,16 +13,14 @@ import { useStudentProfiles } from '../hooks/useStudentProfiles';
 import { getClasses, getStudentsByClass } from '../lib/api';
 import type { Class, Student } from '../lib/supabase';
 
-interface AdminStudentsPageProps {
-  onBack: () => void;
-}
 
 interface StudentWithClass extends Student {
   class_name?: string;
 }
 
-export default function AdminStudentsPage({ onBack }: AdminStudentsPageProps) {
+export default function AdminStudentsPage() {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [classes, setClasses] = useState<Class[]>([]);
   const [allStudents, setAllStudents] = useState<StudentWithClass[]>([]);
   const [expandedClasses, setExpandedClasses] = useState<Set<string>>(new Set());
@@ -43,6 +42,9 @@ export default function AdminStudentsPage({ onBack }: AdminStudentsPageProps) {
     loadData();
   }, []);
 
+  const handleBack = () => {
+    navigate('/admin');
+  };
   const loadData = async () => {
     try {
       setLoading(true);
@@ -207,7 +209,7 @@ export default function AdminStudentsPage({ onBack }: AdminStudentsPageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <LanguageSwitcher showBackButton={true} onBack={onBack} />
+      <LanguageSwitcher showBackButton={true} onBack={handleBack} />
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <motion.div

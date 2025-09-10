@@ -18,14 +18,10 @@ import {
 import { extractGradeFromClassName } from '../lib/api';
 import type { Student, Subject, Material } from '../lib/supabase';
 
-interface StudentSochPageProps {
-  student: Student;
-  className: string;
-}
-
-export default function StudentSochPage({ student, className }: StudentSochPageProps) {
+export default function StudentSochPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const [studentData, setStudentData] = useState<{student: Student, className: string} | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
@@ -35,9 +31,17 @@ export default function StudentSochPage({ student, className }: StudentSochPageP
   const [error, setError] = useState<string | null>(null);
   
   // Загружаем профиль студента
-  const { profile: studentProfile } = useStudentProfile(student.id);
+  const { profile: studentProfile } = useStudentProfile(studentData?.student?.id || '');
 
   useEffect(() => {
+    const saved = localStorage.getItem('studentDashboardData');
+    if (saved) {
+      setStudentData(JSON.parse(saved));
+    } else {
+      navigate('/', { replace: true });
+      return;
+    }
+    
     loadSubjects();
   }, []);
 
@@ -60,10 +64,11 @@ export default function StudentSochPage({ student, className }: StudentSochPageP
   };
 
   const loadSubjectMaterials = (subject: Subject) => {
+    if (!studentData) return;
     navigate(`/student-soch-materials/${subject.id}`, { 
       state: { 
-        student, 
-        className, 
+        student: studentData.student, 
+        className: studentData.className, 
         subject,
         type: 'SOCH'
       } 
@@ -72,15 +77,15 @@ export default function StudentSochPage({ student, className }: StudentSochPageP
 
   const handleLogout = () => {
     localStorage.removeItem('studentDashboardData');
-    navigate('/');
+    navigate('/', { replace: true });
   };
 
   const handleForgetSession = () => {
     localStorage.removeItem('studentId');
     localStorage.removeItem('createdAt');
     localStorage.removeItem('studentDashboardData');
-    localStorage.removeItem('shouldAutoLogin');
-    navigate('/');
+    localStorage.setItem('skipAutoLogin', 'true');
+    navigate('/', { replace: true });
   };
 
   const handleProfileClick = () => {
@@ -88,12 +93,17 @@ export default function StudentSochPage({ student, className }: StudentSochPageP
   };
 
   const getStudentName = () => {
-    const nameParts = student.name.split(' ');
+    if (!studentData) return '';
+    const nameParts = studentData.student.name.split(' ');
     if (nameParts.length >= 2) {
       return `${nameParts[0]} ${nameParts[1]}`;
     }
-    return student.name;
+    return studentData.student.name;
   };
+
+  if (!studentData) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">

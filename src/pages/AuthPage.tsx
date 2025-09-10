@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Lock, Eye, EyeOff, CheckCircle, Loader2, ArrowLeft } from 'lucide-react';
+import { Key, Lock, Eye, EyeOff, CheckCircle, Loader2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import StudentAvatar from '../components/StudentAvatar';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { useStudentProfile } from '../hooks/useStudentProfiles';
 import { 
   validateKey, 
   validatePassword, 
-  createPassword,
-  getStudent
+  createPassword
 } from '../lib/api';
 import { getStudent as getStudentService } from '../services/student';
 import type { Student } from '../lib/supabase';
@@ -53,7 +53,7 @@ export default function AuthPage() {
 
   const loadStudent = async () => {
     if (!studentId) {
-      navigate('/');
+      navigate('/', { replace: true });
       return;
     }
 
@@ -63,10 +63,10 @@ export default function AuthPage() {
       if (studentData) {
         setStudent(studentData);
       } else {
-        navigate('/');
+        navigate('/', { replace: true });
       }
     } catch (err) {
-      navigate('/');
+      navigate('/', { replace: true });
     } finally {
       setLoading(false);
     }
@@ -202,22 +202,14 @@ export default function AuthPage() {
       }, isAutoLogin ? 500 : 1000);
     } else {
       setTimeout(() => {
-        navigate('/student-dashboard');
+        navigate('/student-dashboard', { replace: true });
       }, isAutoLogin ? 500 : 1000);
     }
   };
 
   const handleBack = () => {
-    if (classId) {
-      navigate(`/class/${classId}`, { 
-        state: { 
-          classId, 
-          className 
-        } 
-      });
-    } else {
-      navigate('/');
-    }
+    // Используем history.back() для корректной работы системной кнопки "Назад"
+    window.history.back();
   };
 
   const formatKeyInput = (value: string) => {
@@ -240,7 +232,7 @@ export default function AuthPage() {
         <div className="text-center">
           <p className="text-red-600 mb-4">Студент не найден</p>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/', { replace: true })}
             className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
           >
             На главную

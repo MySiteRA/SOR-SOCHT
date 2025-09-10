@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { GraduationCap, User, Key, Lock, ArrowLeft, Eye, EyeOff, CheckCircle, Loader2, LogOut, Trash2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import Header from '../components/Header';
@@ -28,6 +29,7 @@ interface HomePageProps {
 
 export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageProps) {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   
   // Main state
   const [step, setStep] = useState<Step>('classes');
@@ -322,23 +324,12 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
   };
 
   const handleBack = () => {
-    setSuccessMessage(t('common.returnedToPrevious'));
-    setTimeout(() => setSuccessMessage(null), 2000);
-    
-    setSuccessMessage(t('common.returnedToPrevious'));
-    setTimeout(() => setSuccessMessage(null), 2000);
-    
     if (step === 'auth') {
-      setStep('students');
-      setSelectedStudent(null);
-      setKeyValue('');
-      setPassword('');
-      setConfirmPassword('');
-      setError(null);
+      // Используем history.back() для корректной работы системной кнопки "Назад"
+      window.history.back();
     } else if (step === 'students') {
-      setStep('classes');
-      setSelectedClass(null);
-      setStudents([]);
+      // Используем history.back() для корректной работы системной кнопки "Назад"
+      window.history.back();
     }
   };
 
@@ -367,6 +358,7 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
       </div>
     );
   }
+  
   if (loading && step === 'classes') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 flex items-center justify-center">
@@ -379,8 +371,7 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100">
       <Header 
         onShowAdminModal={onShowAdminModal} 
-        showBackButton={step !== 'classes'} 
-        onBack={handleBack}
+        showBackButton={false}
         onStudentLogin={onStudentLogin}
       />
       
@@ -440,324 +431,61 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
           )}
         </AnimatePresence>
 
-        {/* Classes Selection */}
-        {step === 'classes' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="max-w-6xl mx-auto"
-          >
-            <div className="text-center mb-12">
-              <div className="flex items-center justify-center mb-6">
-                <GraduationCap className="w-16 h-16 text-indigo-600 mr-4" />
-                <h1 className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                  {t('home.title')}
-                </h1>
-              </div>
-              <p className="text-xl text-gray-600">{t('home.selectClass')}</p>
+        {/* Main Page Content */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-6xl mx-auto"
+        >
+          <div className="text-center mb-12">
+            <div className="flex items-center justify-center mb-6">
+              <GraduationCap className="w-16 h-16 text-indigo-600 mr-4" />
+              <h1 className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                {t('home.title')}
+              </h1>
             </div>
+            <p className="text-xl text-gray-600">{t('home.selectClass')}</p>
+          </div>
 
-            {error ? (
-              <div className="text-center py-12">
-                <p className="text-red-600 mb-4">{error}</p>
-                <button
-                  onClick={loadClasses}
-                  className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
+          {error ? (
+            <div className="text-center py-12">
+              <p className="text-red-600 mb-4">{error}</p>
+              <button
+                onClick={loadClasses}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
+              >
+                {t('common.tryAgain')}
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+              {classes.map((classItem, index) => (
+                <motion.div
+                  key={classItem.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ scale: 1.02, y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => navigate(`/class/${classItem.id}`, { 
+                    state: { 
+                      classId: classItem.id, 
+                      className: classItem.name 
+                    } 
+                  })}
+                  className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 hover:border-indigo-300 p-6"
                 >
-                  {t('common.tryAgain')}
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                {classes.map((classItem, index) => (
-                  <motion.div
-                    key={classItem.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    whileHover={{ scale: 1.02, y: -4 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => loadStudents(classItem)}
-                    className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 hover:border-indigo-300 p-6"
-                  >
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4">
-                        <GraduationCap className="w-8 h-8 text-white" />
-                      </div>
-                      <h3 className="text-2xl font-bold text-gray-800">{classItem.name}</h3>
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+                      <GraduationCap className="w-8 h-8 text-white" />
                     </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {/* Students Selection */}
-        {step === 'students' && selectedClass && (
-          <motion.div
-            initial={{ opacity: 0, x: 100 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -100 }}
-            className="max-w-4xl mx-auto"
-          >
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                {t('home.selectStudent')} {selectedClass.name}
-              </h2>
+                    <h3 className="text-2xl font-bold text-gray-800">{classItem.name}</h3>
+                  </div>
+                </motion.div>
+              ))}
             </div>
-
-            {loading ? (
-              <LoadingSpinner />
-            ) : (
-              <div className="space-y-3">
-                {students.map((student, index) => (
-                  <motion.div
-                    key={student.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    whileHover={{ x: 8 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => selectStudent(student)}
-                    className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 hover:border-indigo-300 p-6"
-                  >
-                    <div className="flex items-center">
-                      <div className="mr-4">
-                        <StudentAvatar 
-                          student={student} 
-                          avatarUrl={profiles.get(student.id)?.avatar_url}
-                          size="md"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900">{student.name}</h3>
-                        <p className="text-sm text-gray-500">
-                          {savedLogin && savedLogin.studentId === student.id 
-                            ? t('auth.quickLogin') 
-                            : student.password_hash 
-                              ? t('auth.passwordSet') 
-                              : t('auth.noPassword')
-                          }
-                        </p>
-                      </div>
-                      <div className="w-6 h-6 border-2 border-gray-300 rounded-full group-hover:border-indigo-500 transition-colors" />
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {/* Authentication */}
-        {step === 'auth' && selectedStudent && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="max-w-md mx-auto"
-          >
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <div className="text-center mb-6">
-                <div className="flex justify-center mb-4">
-                  <StudentAvatar 
-                    student={selectedStudent} 
-                    avatarUrl={profiles.get(selectedStudent.id)?.avatar_url}
-                    size="lg"
-                  />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedStudent.name}</h2>
-                <p className="text-gray-600">
-                  {authStep === 'key' && t('auth.enterKey')}
-                  {authStep === 'password' && t('auth.enterPassword')}
-                  {authStep === 'create-password' && t('auth.createPassword')}
-                </p>
-              </div>
-
-              <AnimatePresence mode="wait">
-                {/* Key Input */}
-                {authStep === 'key' && (
-                  <motion.form
-                    key="key-form"
-                    initial={{ x: -20, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: 20, opacity: 0 }}
-                    onSubmit={handleKeySubmit}
-                    className="space-y-4"
-                  >
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        {t('auth.enterKey')}
-                      </label>
-                      <div className="relative">
-                        <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                          type="text"
-                          value={keyValue}
-                          onChange={(e) => setKeyValue(formatKeyInput(e.target.value.toUpperCase()))}
-                          placeholder={t('auth.keyPlaceholder')}
-                          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-center tracking-wider"
-                          maxLength={14}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isProcessing || keyValue.length < 14}
-                      className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {isProcessing ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : t('auth.continue')}
-                    </button>
-                  </motion.form>
-                )}
-
-                {/* Password Input */}
-                {authStep === 'password' && (
-                  <motion.form
-                    key="password-form"
-                    initial={{ x: -20, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: 20, opacity: 0 }}
-                    onSubmit={handlePasswordSubmit}
-                    className="space-y-4"
-                  >
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        {t('auth.enterPassword')}
-                      </label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder={t('auth.passwordPlaceholder')}
-                          className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
-                        >
-                          {showPassword ? (
-                            <EyeOff className="w-4 h-4 text-gray-400" />
-                          ) : (
-                            <Eye className="w-4 h-4 text-gray-400" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <button
-                        type="submit"
-                        disabled={isProcessing || !password}
-                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {isProcessing ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : t('auth.login')}
-                      </button>
-                      
-                      <button
-                        type="button"
-                        onClick={() => setAuthStep('key')}
-                        className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition-colors"
-                      >
-                        {t('auth.enterKey')}
-                      </button>
-                    </div>
-                  </motion.form>
-                )}
-
-                {/* Create Password */}
-                {authStep === 'create-password' && (
-                  <motion.form
-                    key="create-password-form"
-                    initial={{ x: -20, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: 20, opacity: 0 }}
-                    onSubmit={handleCreatePasswordSubmit}
-                    className="space-y-4"
-                  >
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm mb-4">
-                      <div className="flex items-center">
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        {t('auth.keyVerified')}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        {t('auth.newPasswordPlaceholder')}
-                      </label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder={t('auth.newPasswordPlaceholder')}
-                          className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          required
-                          minLength={4}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
-                        >
-                          {showPassword ? (
-                            <EyeOff className="w-4 h-4 text-gray-400" />
-                          ) : (
-                            <Eye className="w-4 h-4 text-gray-400" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        {t('auth.confirmPasswordPlaceholder')}
-                      </label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                          type={showConfirmPassword ? 'text' : 'password'}
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder={t('auth.confirmPasswordPlaceholder')}
-                          className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
-                        >
-                          {showConfirmPassword ? (
-                            <EyeOff className="w-4 h-4 text-gray-400" />
-                          ) : (
-                            <Eye className="w-4 h-4 text-gray-400" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isProcessing || !password || !confirmPassword}
-                      className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {isProcessing ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : t('auth.createPasswordButton')}
-                    </button>
-                  </motion.form>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
+          )}
+        </motion.div>
       </div>
     </div>
   );

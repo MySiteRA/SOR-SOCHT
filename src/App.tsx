@@ -6,14 +6,24 @@ import AdminPage from './pages/AdminPage';
 import AdminStudentsPage from './pages/AdminStudentsPage';
 import StudentDashboardPage from './pages/StudentDashboardPage';
 import StudentProfilePage from './pages/StudentProfilePage';
+import StudentSorPage from './pages/StudentSorPage';
+import StudentSochPage from './pages/StudentSochPage';
+import StudentMaterialsPage from './pages/StudentMaterialsPage';
+import ClassSelectionPage from './pages/ClassSelectionPage';
+import StudentSelectionPage from './pages/StudentSelectionPage';
+import AuthPage from './pages/AuthPage';
+import ProtectedRoute from './components/ProtectedRoute';
 import Modal from './components/Modal';
 import { validateAdminCredentials } from './lib/api';
 import { Lock } from 'lucide-react';
 import { useLanguage } from './contexts/LanguageContext';
+import { useNavigationGuard } from './hooks/useNavigationGuard';
 
 function AppContent() {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  useNavigationGuard();
+  
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
     return localStorage.getItem('adminLoggedIn') === 'true';
   });
@@ -23,11 +33,6 @@ function AppContent() {
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState<string | null>(null);
 
-  // Состояние для студенческого дашборда
-  const [studentData, setStudentData] = useState<{student: any, className: string} | null>(() => {
-    const saved = localStorage.getItem('studentDashboardData');
-    return saved ? JSON.parse(saved) : null;
-  });
 
   const handleAdminLoginSuccess = () => {
     setIsAdminLoggedIn(true);
@@ -47,10 +52,10 @@ function AppContent() {
 
   const handleStudentLogin = (student: any, className: string) => {
     const dashboardData = { student, className };
-    setStudentData(dashboardData);
     localStorage.setItem('studentDashboardData', JSON.stringify(dashboardData));
     navigate('/student-dashboard');
   };
+  
   const handleAdminSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -71,6 +76,7 @@ function AppContent() {
   return (
     <>
       <Routes>
+        {/* Public Routes */}
         <Route 
           path="/" 
           element={
@@ -80,49 +86,91 @@ function AppContent() {
             />
           } 
         />
+        
+        <Route 
+          path="/class/:classId" 
+          element={<StudentSelectionPage />} 
+        />
+        
+        <Route 
+          path="/auth/:studentId" 
+          element={<AuthPage />} 
+        />
+        
+        {/* Student Protected Routes */}
         <Route 
           path="/student-dashboard" 
           element={
-            studentData ? (
-              <StudentDashboardPage 
-                student={studentData.student} 
-                className={studentData.className}
-              />
-            ) : (
-              <Navigate to="/" replace />
-            )
+            <ProtectedRoute requiresStudentSession={true}>
+              <StudentDashboardPage />
+            </ProtectedRoute>
           } 
         />
+        
         <Route 
           path="/student-profile" 
           element={
-            studentData ? (
-              <StudentProfilePage 
-                student={studentData.student} 
-                className={studentData.className}
-              />
-            ) : (
-              <Navigate to="/" replace />
-            )
+            <ProtectedRoute requiresStudentSession={true}>
+              <StudentProfilePage />
+            </ProtectedRoute>
           } 
         />
+        
+        <Route 
+          path="/student-sor" 
+          element={
+            <ProtectedRoute requiresStudentSession={true}>
+              <StudentSorPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-soch" 
+          element={
+            <ProtectedRoute requiresStudentSession={true}>
+              <StudentSochPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-sor-materials/:subjectId" 
+          element={
+            <ProtectedRoute requiresStudentSession={true}>
+              <StudentMaterialsPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-soch-materials/:subjectId" 
+          element={
+            <ProtectedRoute requiresStudentSession={true}>
+              <StudentMaterialsPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Admin Protected Routes */}
         <Route 
           path="/admin" 
           element={
-            isAdminLoggedIn ? (
-              showStudentsPage ? (
-                <AdminStudentsPage onBack={() => setShowStudentsPage(false)} />
-              ) : (
-                <AdminPage 
-                  onLogout={handleAdminLogout} 
-                  onShowStudents={() => setShowStudentsPage(true)}
-                />
-              )
-            ) : (
-              <Navigate to="/" replace />
-            )
+            <ProtectedRoute requiresAdminSession={true}>
+              <AdminPage onLogout={handleAdminLogout} />
+            </ProtectedRoute>
           } 
         />
+        
+        <Route 
+          path="/admin/students" 
+          element={
+            <ProtectedRoute requiresAdminSession={true}>
+              <AdminStudentsPage />
+            </ProtectedRoute>
+          } 
+        />
+        
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

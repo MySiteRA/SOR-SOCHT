@@ -9,24 +9,15 @@ export function useNavigationGuard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      // Предотвращаем случайное закрытие на важных страницах
-      const protectedPaths = ['/auth/', '/student-dashboard', '/student-profile'];
-      const isProtectedPath = protectedPaths.some(path => location.pathname.includes(path));
-      
-      if (isProtectedPath) {
-        event.preventDefault();
-        event.returnValue = '';
-      }
-    };
-
     const handlePopState = (event: PopStateEvent) => {
-      // Обработка системной кнопки "Назад"
       const currentPath = location.pathname;
       
       // На главной странице - закрываем приложение
-      if (currentPath === '/' && window.history.length <= 1) {
-        window.close();
+      if (currentPath === '/' && window.history.length <= 2) {
+        // Пытаемся закрыть приложение (работает только если открыто через приложение)
+        if (window.opener || window.history.length === 1) {
+          window.close();
+        }
         return;
       }
       
@@ -39,13 +30,24 @@ export function useNavigationGuard() {
         navigate('/', { replace: true });
         return;
       }
+      
+      // Для админских страниц проверяем сессию админа
+      const isAdminArea = currentPath.startsWith('/admin');
+      const hasAdminSession = localStorage.getItem('adminLoggedIn') === 'true';
+      
+      if (isAdminArea && !hasAdminSession) {
+        event.preventDefault();
+        navigate('/', { replace: true });
+        return;
+      }
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('popstate', handlePopState);
+    // Добавляем обработчик только если мы не на главной странице
+    if (location.pathname !== '/') {
+      window.addEventListener('popstate', handlePopState);
+    }
 
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('popstate', handlePopState);
     };
   }, [location.pathname, navigate]);
@@ -57,7 +59,6 @@ export function useNavigationGuard() {
     if (clearSession) {
       localStorage.removeItem('studentDashboardData');
       localStorage.setItem('skipAutoLogin', 'true');
-      window.history.replaceState(null, '', '/');
     }
     navigate(path, { replace: true });
   };
@@ -70,8 +71,16 @@ export function useNavigationGuard() {
     return !!dashboardData;
   };
 
+  /**
+   * Проверка валидности сессии для админских страниц
+   */
+  const validateAdminSession = (): boolean => {
+    return localStorage.getItem('adminLoggedIn') === 'true';
+  };
+
   return {
     navigateWithHistoryReplacement,
-    validateStudentSession
+    validateStudentSession,
+    validateAdminSession
   };
 }

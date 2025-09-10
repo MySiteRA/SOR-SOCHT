@@ -70,24 +70,21 @@ export default function StudentMaterialsPage() {
   };
 
   const handleBack = () => {
-    if (type === 'SOR') {
-      navigate('/student-sor');
-    } else {
-      navigate('/student-soch');
-    }
+    // Используем history.back() для корректной работы системной кнопки "Назад"
+    window.history.back();
   };
 
   const handleLogout = () => {
     localStorage.removeItem('studentDashboardData');
-    navigate('/');
+    navigate('/', { replace: true });
   };
 
   const handleForgetSession = () => {
     localStorage.removeItem('studentId');
     localStorage.removeItem('createdAt');
     localStorage.removeItem('studentDashboardData');
-    localStorage.removeItem('shouldAutoLogin');
-    navigate('/');
+    localStorage.setItem('skipAutoLogin', 'true');
+    navigate('/', { replace: true });
   };
 
   const handleProfileClick = () => {
