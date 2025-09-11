@@ -4,7 +4,7 @@ import { BookOpen, FileText, MoreVertical, LogOut, Trash2, User as UserIcon } fr
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import StudentAvatar from '../components/StudentAvatar';
-import { useStudentProfile } from '../hooks/useStudentProfiles';
+import { usePreloadedData } from '../hooks/usePreloadedData';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,8 +18,8 @@ export default function StudentDashboardPage() {
   const navigate = useNavigate();
   const [studentData, setStudentData] = useState<{student: Student, className: string} | null>(null);
   
-  // Загружаем профиль студента
-  const { profile: studentProfile } = useStudentProfile(studentData?.student?.id || '');
+  // Используем предзагруженные данные
+  const { data: preloadedData } = usePreloadedData();
 
   useEffect(() => {
     const saved = localStorage.getItem('studentDashboardData');
@@ -146,6 +146,20 @@ export default function StudentDashboardPage() {
       </header>
 
       <div className="container mx-auto px-4 py-8">
+        {/* Индикатор предзагруженных данных */}
+        {preloadedData && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 text-center"
+          >
+            <div className="inline-flex items-center space-x-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm border border-green-200">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>Данные предзагружены • Быстрая навигация активна</span>
+            </div>
+          </motion.div>
+        )}
+
         {/* Main Dashboard */}
         <motion.div
           initial={{ opacity: 0, x: 100 }}

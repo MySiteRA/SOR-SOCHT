@@ -10,6 +10,7 @@ import LanguageSwitcher from '../components/LanguageSwitcher';
 import LoadingSpinner from '../components/LoadingSpinner';
 import StudentAvatar from '../components/StudentAvatar';
 import { useStudentProfiles } from '../hooks/useStudentProfiles';
+import { useAvatarPreloader } from '../hooks/useAvatarPreloader';
 import { getClasses, getStudentsByClass } from '../lib/api';
 import type { Class, Student } from '../lib/supabase';
 
@@ -32,6 +33,9 @@ export default function AdminStudentsPage() {
   // Загружаем профили студентов
   const studentIds = allStudents.map(s => s.id);
   const { profiles } = useStudentProfiles(studentIds);
+  
+  // Используем предзагрузчик аватарок
+  const { getAvatar, preloadAvatars } = useAvatarPreloader();
 
   // Фильтры
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,6 +69,12 @@ export default function AdminStudentsPage() {
       const studentsArrays = await Promise.all(studentsPromises);
       const allStudentsData = studentsArrays.flat();
       setAllStudents(allStudentsData);
+      
+      // Запускаем фоновую загрузку аватарок
+      if (allStudentsData.length > 0) {
+        const studentIds = allStudentsData.map(s => s.id);
+        preloadAvatars(studentIds).catch(console.error);
+      }
     } catch (err) {
       setError(t('error.loadingClasses'));
     } finally {
@@ -453,7 +463,7 @@ export default function AdminStudentsPage() {
                                         <div className="flex items-center space-x-3">
                                           <StudentAvatar 
                                             student={student} 
-                                            avatarUrl={profiles.get(student.id)?.avatar_url}
+                                            avatarUrl={getAvatar(student.id) || profiles.get(student.id)?.avatar_url}
                                             size="sm"
                                           />
                                           <div className="flex items-center space-x-2">

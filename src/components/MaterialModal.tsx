@@ -1,7 +1,23 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FileText, ExternalLink, Image, Download, Calendar, BookOpen } from 'lucide-react';
+import { dataPreloader } from '../services/preloader';
+import LoadingSpinner from './LoadingSpinner';
 import type { Material } from '../lib/supabase';
+
+// Интерфейс для полных данных материала
+interface MaterialFullData {
+  id: string;
+  subject_id: string;
+  title: string;
+  type: 'SOR' | 'SOCH';
+  created_at: string;
+  grade: number;
+  language: string;
+  quarter: number;
+  subject?: any;
+  content_value: Array<{type: string, value: string}>;
+}
 
 interface MaterialModalProps {
   isOpen: boolean;
@@ -11,18 +27,49 @@ interface MaterialModalProps {
 
 export default function MaterialModal({ isOpen, onClose, material }: MaterialModalProps) {
   const [activeTab, setActiveTab] = useState<string>('');
+  const [fullMaterial, setFullMaterial] = useState<MaterialFullData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Загружаем полные данные материала при открытии модального окна
+  React.useEffect(() => {
+    if (isOpen && material.id) {
+      loadFullMaterial();
+    }
+  }, [isOpen, material.id]);
+
+  const loadFullMaterial = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const fullData = await dataPreloader.getMaterialFullData(material.id);
+      if (fullData) {
+        setFullMaterial(fullData);
+      } else {
+        setError('Не удалось загрузить содержимое материала');
+      }
+    } catch (err) {
+      console.error('Error loading full material:', err);
+      setError('Ошибка загрузки материала');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Парсим JSON контент
   const contentItems = useMemo(() => {
+    if (!fullMaterial) return [];
+    
     try {
-      const parsed = Array.isArray(material.content_value)
-        ? material.content_value
-        : JSON.parse(material.content_value as string) as Array<{type: string, value: string}>;
+      const parsed = Array.isArray(fullMaterial.content_value)
+        ? fullMaterial.content_value
+        : JSON.parse(fullMaterial.content_value as string) as Array<{type: string, value: string}>;
       return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
-  }, [material.content_value]);
+  }, [fullMaterial?.content_value]);
 
   // Группируем контент по типам
   const groupedContent = useMemo(() => {
@@ -157,7 +204,28 @@ export default function MaterialModal({ isOpen, onClose, material }: MaterialMod
 
           {/* Content */}
           <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-            {availableTabs.length === 0 ? (
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <LoadingSpinner />
+              </div>
+            )}
+            
+            {error && (
+              <div className="text-center py-12">
+                <div className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+                  {error}
+                </div>
+                <button
+                  onClick={loadFullMaterial}
+                  className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  Попробовать еще раз
+                </button>
+              </div>
+            )}
+            
+            {!loading && !error && (
+            availableTabs.length === 0 ? (
               <div className="text-center py-12">
                 <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-medium text-gray-600 mb-2">Нет содержимого</h3>
@@ -268,6 +336,7 @@ export default function MaterialModal({ isOpen, onClose, material }: MaterialMod
                   </motion.div>
                 )}
               </AnimatePresence>
+            )
             )}
           </div>
         </motion.div>

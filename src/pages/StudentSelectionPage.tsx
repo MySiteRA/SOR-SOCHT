@@ -7,6 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import StudentAvatar from '../components/StudentAvatar';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import { useStudentProfiles } from '../hooks/useStudentProfiles';
+import { useAvatarPreloader } from '../hooks/useAvatarPreloader';
 import { getStudentsByClass } from '../lib/api';
 import type { Student } from '../lib/supabase';
 
@@ -27,6 +28,9 @@ export default function StudentSelectionPage() {
   // Загружаем профили студентов
   const studentIds = students.map(s => s.id);
   const { profiles } = useStudentProfiles(studentIds);
+  
+  // Используем предзагрузчик аватарок
+  const { getAvatar, preloadAvatars } = useAvatarPreloader();
 
   // Проверяем сохраненные данные входа при загрузке
   useEffect(() => {
@@ -61,6 +65,12 @@ export default function StudentSelectionPage() {
       setError(null);
       const studentData = await getStudentsByClass(classId);
       setStudents(studentData);
+      
+      // Запускаем фоновую загрузку аватарок
+      if (studentData.length > 0) {
+        const studentIds = studentData.map(s => s.id);
+        preloadAvatars(studentIds).catch(console.error);
+      }
     } catch (err) {
       setError(t('error.loadingStudents'));
     } finally {
@@ -161,7 +171,7 @@ export default function StudentSelectionPage() {
                     <div className="mr-4">
                       <StudentAvatar 
                         student={student} 
-                        avatarUrl={profiles.get(student.id)?.avatar_url}
+                        avatarUrl={getAvatar(student.id) || profiles.get(student.id)?.avatar_url}
                         size="md"
                       />
                     </div>

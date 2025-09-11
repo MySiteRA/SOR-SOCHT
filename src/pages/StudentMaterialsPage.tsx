@@ -7,8 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import MaterialCard from '../components/MaterialCard';
 import MaterialModal from '../components/MaterialModal';
 import StudentAvatar from '../components/StudentAvatar';
-import { useStudentProfile } from '../hooks/useStudentProfiles';
-import { supabase } from '../lib/supabase';
+import { usePreloadedData } from '../hooks/usePreloadedData';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +15,20 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
 import { extractGradeFromClassName } from '../lib/api';
-import type { Student, Subject, Material } from '../lib/supabase';
+import type { Student, Subject } from '../lib/supabase';
+
+// Интерфейс для метаданных материала
+interface MaterialMetadata {
+  id: string;
+  subject_id: string;
+  title: string;
+  type: 'SOR' | 'SOCH';
+  created_at: string;
+  grade: number;
+  language: string;
+  quarter: number;
+  subject?: Subject;
+}
 
 export default function StudentMaterialsPage() {
   const { t } = useLanguage();
@@ -27,47 +39,29 @@ export default function StudentMaterialsPage() {
   // Получаем данные из state
   const { student, className, subject, type } = location.state || {};
   
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  const [selectedMaterial, setSelectedMaterial] = useState<MaterialMetadata | null>(null);
   const [showMaterialModal, setShowMaterialModal] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Загружаем профиль студента
-  const { profile: studentProfile } = useStudentProfile(student?.id);
+  // Используем предзагруженные данные
+  const { data: preloadedData, loading } = usePreloadedData();
+  
+  // Получаем материалы из предзагруженных данных
+  const allMaterials = type === 'SOR' 
+    ? (preloadedData?.sorMaterials || [])
+    : (preloadedData?.sochMaterials || []);
+  
+  // Фильтруем материалы по предмету
+  const materials = allMaterials.filter(material => material.subject_id === subjectId);
 
   useEffect(() => {
     if (student && subject && type && subjectId) {
-      loadMaterials();
+      // Данные уже предзагружены, ничего дополнительно загружать не нужно
     } else {
       // Если нет данных в state, перенаправляем на дашборд
       navigate('/student-dashboard');
     }
   }, [student, subject, type, subjectId]);
-
-  const loadMaterials = async () => {
-    try {
-      setLoading(true);
-      
-      const grade = extractGradeFromClassName(className);
-      
-      const { data: materialData, error } = await supabase
-        .from("materials")
-        .select("*, subject:subjects(*)")
-        .eq("grade", grade)
-        .eq("subject_id", subjectId)
-        .eq("type", type)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      
-      setMaterials(materialData || []);
-    } catch (err) {
-      setError('Ошибка загрузки материалов');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleBack = () => {
     // Используем history.back() для корректной работы системной кнопки "Назад"
@@ -91,7 +85,7 @@ export default function StudentMaterialsPage() {
     navigate('/student-profile');
   };
 
-  const handleMaterialClick = (material: Material) => {
+  const handleMaterialClick = (material: MaterialMetadata) => {
     setSelectedMaterial(material);
     setShowMaterialModal(true);
   };
@@ -217,10 +211,24 @@ export default function StudentMaterialsPage() {
         )}
 
         {/* Loading */}
-        {loading && <LoadingSpinner />}
+        {loading && materials.length === 0 && <LoadingSpinner />}
+        
+        {/* Показываем индикатор обновления если есть материалы */}
+        {loading && materials.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-4 mb-6"
+          >
+            <div className="inline-flex items-center space-x-2 text-gray-600 bg-gray-50 px-4 py-2 rounded-full border">
+              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-sm">Обновление материалов...</span>
+            </div>
+          </motion.div>
+        )}
 
         {/* Materials List */}
-        {!loading && (
+        {(materials.length > 0 || !loading) && (
           <motion.div
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}

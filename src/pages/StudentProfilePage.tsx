@@ -11,6 +11,8 @@ import {
   resetStudentPassword,
   changeStudentPassword
 } from '../lib/api';
+import { usePreloadedData } from '../hooks/usePreloadedData';
+import { dataPreloader } from '../services/preloader';
 import type { Student, StudentProfile, LoginSession } from '../lib/supabase';
 
 type ProfileTab = 'settings' | 'security';
@@ -20,12 +22,16 @@ export default function StudentProfilePage() {
   const navigate = useNavigate();
   const [studentData, setStudentData] = useState<{student: Student, className: string} | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>('settings');
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [loginSessions, setLoginSessions] = useState<LoginSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Используем предзагруженные данные
+  const { data: preloadedData, refresh: refreshPreloadedData } = usePreloadedData();
+  
+  // Локальное состояние для данных профиля (может отличаться от предзагруженных)
+  const [localProfile, setLocalProfile] = useState<StudentProfile | null>(null);
+  const [localLoginSessions, setLocalLoginSessions] = useState<LoginSession[]>([]);
   // Avatar state
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -52,16 +58,37 @@ export default function StudentProfilePage() {
     loadProfileData();
   }, []);
 
+  // Синхронизируем с предзагруженными данными
+  useEffect(() => {
+    if (preloadedData) {
+      setLocalProfile(preloadedData.profile);
+      setLocalLoginSessions(preloadedData.loginSessions);
+      setLoading(false);
+    }
+  }, [preloadedData]);
+
   const loadProfileData = async () => {
     if (!studentData) return;
     
     try {
-      setLoading(true);
       setError(null);
+      
+      // Если есть предзагруженные данные, используем их сразу
+      if (preloadedData) {
+        setLocalProfile(preloadedData.profile);
+        setLocalLoginSessions(preloadedData.loginSessions);
+        setLoading(false);
+        
+        if (preloadedData.profile?.avatar_url) {
+          setAvatarPreview(preloadedData.profile.avatar_url);
+        }
+      } else {
+        setLoading(true);
+      }
       
       // Загружаем профиль
       const profileData = await getStudentProfile(studentData.student.id);
-      setProfile(profileData);
+      setLocalProfile(profileData);
       
       if (profileData?.avatar_url) {
         setAvatarPreview(profileData.avatar_url);
@@ -69,7 +96,11 @@ export default function StudentProfilePage() {
       
       // Загружаем сессии входа
       const sessionsData = await getStudentLoginSessions(studentData.student.id, 5);
-      setLoginSessions(sessionsData);
+      setLocalLoginSessions(sessionsData);
+      
+      // Инвалидируем кэш для обновления предзагруженных данных
+      dataPreloader.invalidateCache();
+      refreshPreloadedData();
     } catch (err) {
       setError('Ошибка загрузки данных профиля');
     } finally {
@@ -367,6 +398,12 @@ export default function StudentProfilePage() {
                               alt="Аватар"
                               className="w-full h-full object-cover"
                             />
+                          ) : localProfile?.avatar_url ? (
+                            <img
+                              src={localProfile.avatar_url}
+                              alt="Аватар"
+                              className="w-full h-full object-cover"
+                            />
                           ) : (
                             <span className="text-white font-bold text-3xl">
                               {getStudentInitials()}
@@ -400,7 +437,7 @@ export default function StudentProfilePage() {
                           </motion.div>
                         </label>
                         
-                        {(avatarPreview || profile?.avatar_url) && (
+                        {(avatarPreview || localProfile?.avatar_url) && (
                           <motion.button
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
@@ -493,14 +530,14 @@ export default function StudentProfilePage() {
                     {/* Login History */}
                     <div className="bg-gray-50 rounded-xl p-6">
                       <h4 className="text-lg font-semibold text-gray-900 mb-4">История входов</h4>
-                      {loginSessions.length === 0 ? (
+                      {localLoginSessions.length === 0 ? (
                         <div className="text-center py-6">
                           <Monitor className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                           <p className="text-gray-600">История входов пуста</p>
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {loginSessions.map((session, index) => (
+                          {localLoginSessions.map((session, index) => (
                             <motion.div
                               key={session.id}
                               initial={{ opacity: 0, y: 10 }}

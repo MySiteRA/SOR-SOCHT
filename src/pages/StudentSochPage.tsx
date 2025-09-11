@@ -7,8 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import MaterialCard from '../components/MaterialCard';
 import MaterialModal from '../components/MaterialModal';
 import StudentAvatar from '../components/StudentAvatar';
-import { useStudentProfile } from '../hooks/useStudentProfiles';
-import { supabase } from '../lib/supabase';
+import { usePreloadedData } from '../hooks/usePreloadedData';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,22 +15,36 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
 import { extractGradeFromClassName } from '../lib/api';
-import type { Student, Subject, Material } from '../lib/supabase';
+import type { Student, Subject } from '../lib/supabase';
+
+// Интерфейс для метаданных материала
+interface MaterialMetadata {
+  id: string;
+  subject_id: string;
+  title: string;
+  type: 'SOR' | 'SOCH';
+  created_at: string;
+  grade: number;
+  language: string;
+  quarter: number;
+  subject?: Subject;
+}
 
 export default function StudentSochPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [studentData, setStudentData] = useState<{student: Student, className: string} | null>(null);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  const [selectedMaterial, setSelectedMaterial] = useState<MaterialMetadata | null>(null);
   const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Загружаем профиль студента
-  const { profile: studentProfile } = useStudentProfile(studentData?.student?.id || '');
+  // Используем предзагруженные данные
+  const { data: preloadedData, loading } = usePreloadedData();
+  
+  // Получаем предметы и материалы из предзагруженных данных
+  const subjects = preloadedData?.subjects || [];
+  const materials = preloadedData?.sochMaterials || [];
 
   useEffect(() => {
     const saved = localStorage.getItem('studentDashboardData');
@@ -41,27 +54,7 @@ export default function StudentSochPage() {
       navigate('/', { replace: true });
       return;
     }
-    
-    loadSubjects();
   }, []);
-
-  const loadSubjects = async () => {
-    try {
-      setLoading(true);
-      const { data: subjects, error } = await supabase
-        .from("subjects")
-        .select("*")
-        .order('name');
-      
-      if (error) throw error;
-      
-      setSubjects(subjects || []);
-    } catch (err) {
-      setError('Ошибка загрузки предметов');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const loadSubjectMaterials = (subject: Subject) => {
     if (!studentData) return;
@@ -212,10 +205,24 @@ export default function StudentSochPage() {
         )}
 
         {/* Loading */}
-        {loading && <LoadingSpinner />}
+        {loading && !preloadedData && <LoadingSpinner />}
+        
+        {/* Показываем индикатор загрузки только если нет предзагруженных данных */}
+        {loading && preloadedData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-4"
+          >
+            <div className="inline-flex items-center space-x-2 text-gray-600">
+              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-sm">Обновление данных...</span>
+            </div>
+          </motion.div>
+        )}
 
         {/* Subjects List */}
-        {!loading && (
+        {(subjects.length > 0 || !loading) && (
           <motion.div
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}

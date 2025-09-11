@@ -1,7 +1,71 @@
 import { supabase } from './supabase';
 import bcrypt from 'bcryptjs';
 import { verifyStudentPassword, setStudentPassword } from './auth';
+import { dataPreloader } from '../services/preloader';
+import { avatarPreloader } from '../services/avatarPreloader';
 import type { Class, Student, Key, Subject, FileRecord, Download, Material, MaterialContentItem, MaterialPayload, StudentProfile, LoginSession } from './supabase';
+
+// Helper function to convert data URL to blob and upload to storage
+async function uploadDataUrlToStorage(dataUrl: string, subjectId: string, grade: number, type: 'image' | 'file'): Promise<string> {
+  // Extract the base64 data and mime type
+  const [header, base64Data] = dataUrl.split(',');
+  const mimeType = header.match(/data:([^;]+)/)?.[1] || 'application/octet-stream';
+  
+  // Convert base64 to blob
+  const byteCharacters = atob(base64Data);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  const blob = new Blob([byteArray], { type: mimeType });
+  
+  // Generate file extension from mime type
+  const extension = mimeType.split('/')[1] || 'bin';
+  const fileName = `${type}_${Date.now()}.${extension}`;
+  
+  // Upload to storage
+  const filePath = `materials/${grade}/${subjectId}/${fileName}`;
+  const { error: uploadError } = await supabase.storage
+    .from('school-files')
+    .upload(filePath, blob);
+    
+  if (uploadError) throw uploadError;
+  
+  // Get public URL
+  const { data: urlData } = supabase.storage
+    .from('school-files')
+    .getPublicUrl(filePath);
+    
+  return urlData.publicUrl;
+}
+
+// Helper function to process content items and upload data URLs
+async function processContentItems(contentItems: MaterialContentItem[], subjectId: string, grade: number): Promise<MaterialContentItem[]> {
+  const processedItems: MaterialContentItem[] = [];
+  
+  for (const item of contentItems) {
+    if ((item.type === 'image' || item.type === 'file') && item.value.startsWith('data:')) {
+      // This is a data URL, upload it to storage
+      try {
+        const publicUrl = await uploadDataUrlToStorage(item.value, subjectId, grade, item.type);
+        processedItems.push({
+          ...item,
+          value: publicUrl
+        });
+      } catch (error) {
+        console.error('Failed to upload data URL:', error);
+        // Keep the original data URL if upload fails
+        processedItems.push(item);
+      }
+    } else {
+      // Regular content, keep as is
+      processedItems.push(item);
+    }
+  }
+  
+  return processedItems;
+}
 
 // ==================== Классы ====================
 export async function getClasses(): Promise<Class[]> {
@@ -188,6 +252,10 @@ export async function createPassword(studentId: string, password: string): Promi
     .eq('id', studentId);
     
   if (error) throw error;
+  
+  // Инвалидируем кэш предзагруженных данных
+  dataPreloader.invalidateCache();
+  
   await logAction('PASSWORD_CREATED', `Password created for student ${studentId}`);
 }
 
@@ -198,6 +266,10 @@ export async function resetStudentPassword(studentId: string): Promise<void> {
     .eq('id', studentId);
     
   if (error) throw error;
+  
+  // Инвалидируем кэш предзагруженных данных
+  dataPreloader.invalidateCache();
+  
   await logAction('PASSWORD_RESET', `Password reset for student ${studentId}`);
 }
 
@@ -210,6 +282,10 @@ export async function changeStudentPassword(studentId: string, oldPassword: stri
   
   // Устанавливаем новый пароль
   await setStudentPassword(studentId, newPassword);
+  
+  // Инвалидируем кэш предзагруженных данных
+  dataPreloader.invalidateCache();
+  
   await logAction('PASSWORD_CHANGED', `Password changed for student ${studentId}`);
 }
 
@@ -265,6 +341,12 @@ export async function updateStudentAvatar(studentId: string, avatarUrl: string):
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('profileUpdated', { detail: { studentId, avatarUrl } }));
   }
+  
+  // Инвалидируем кэш предзагруженных данных
+  dataPreloader.invalidateCache();
+  
+  // Инвалидируем кэш аватарки для этого студента
+  avatarPreloader.invalidateStudentAvatar(studentId);
   
   await logAction('AVATAR_UPDATED', `Avatar updated for student ${studentId}`);
 }
@@ -377,7 +459,12 @@ export async function getMaterialsBySubjectAndGrade(subjectId: string, grade: nu
 }
 
 export async function addMaterial(payload: Omit<MaterialPayload, 'content_type'>): Promise<Material> {
-  const bundle: MaterialContentItem[] = payload.content_value || [];
+  // Process content items to upload any data URLs to storage
+  const bundle: MaterialContentItem[] = await processContentItems(
+    payload.content_value || [], 
+    payload.subject_id, 
+    payload.grade
+  );
   
   const { data, error } = await supabase
     .from('materials')
@@ -426,12 +513,28 @@ export async function updateMaterial(
   title: string, 
   contentData: MaterialContentItem[]
 ): Promise<Material> {
+  // First, get the existing material to obtain subject_id and grade
+  const { data: existingMaterial, error: fetchError } = await supabase
+    .from('materials')
+    .select('subject_id, grade')
+    .eq('id', id)
+    .single();
+    
+  if (fetchError) throw fetchError;
+  
+  // Process content items to upload any data URLs to storage
+  const processedContentData = await processContentItems(
+    contentData, 
+    existingMaterial.subject_id, 
+    existingMaterial.grade
+  );
+  
   const { data, error } = await supabase
     .from('materials')
     .update({
       title,
       content_type: 'bundle',
-      content_value: contentData
+      content_value: processedContentData
     })
     .eq('id', id)
     .select(`*, subject:subjects(*)`)

@@ -8,6 +8,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Modal from '../components/Modal';
 import StudentAvatar from '../components/StudentAvatar';
 import { useStudentProfiles } from '../hooks/useStudentProfiles';
+import { useAvatarPreloader } from '../hooks/useAvatarPreloader';
 import { 
   getClasses, 
   getStudentsByClass, 
@@ -17,6 +18,7 @@ import {
   getStudent
 } from '../lib/api';
 import { getStudent as getStudentService } from '../services/student';
+import { dataPreloader } from '../services/preloader';
 import type { Class, Student } from '../lib/supabase';
 
 type Step = 'classes' | 'students' | 'auth';
@@ -55,6 +57,9 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
   // Загружаем профили студентов
   const studentIds = students.map(s => s.id);
   const { profiles } = useStudentProfiles(studentIds);
+  
+  // Используем предзагрузчик аватарок
+  const { getAvatar, preloadAvatars } = useAvatarPreloader();
 
   // Проверяем сохраненные данные входа при загрузке
   useEffect(() => {
@@ -65,6 +70,9 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
     } else {
       setIsAutoLoginProcessing(false);
     }
+    
+    // Запускаем предзагрузку данных в фоне
+    dataPreloader.initializePreloading().catch(console.error);
   }, []);
 
   const autoLoginWithSavedData = async () => {
@@ -146,6 +154,12 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
       setStudents(studentData);
       setSelectedClass(classItem);
       setStep('students');
+      
+      // Запускаем фоновую загрузку аватарок
+      if (studentData.length > 0) {
+        const studentIds = studentData.map(s => s.id);
+        preloadAvatars(studentIds).catch(console.error);
+      }
     } catch (err) {
       setError(t('error.loadingStudents'));
     } finally {

@@ -1,30 +1,28 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Calendar, BookOpen, ExternalLink, Image, Download } from 'lucide-react';
-import type { Material } from '../lib/supabase';
+import type { Subject } from '../lib/supabase';
+
+// Интерфейс для метаданных материала
+interface MaterialMetadata {
+  id: string;
+  subject_id: string;
+  title: string;
+  type: 'SOR' | 'SOCH';
+  created_at: string;
+  grade: number;
+  language: string;
+  quarter: number;
+  subject?: Subject;
+}
 
 interface MaterialCardProps {
-  material: Material;
+  material: MaterialMetadata;
   index: number;
   onClick?: () => void;
 }
 
 export default function MaterialCard({ material, index, onClick }: MaterialCardProps) {
-  // Парсим JSON контент для определения типов содержимого
-  const getContentTypes = () => {
-    try {
-      const content = Array.isArray(material.content_value) 
-        ? material.content_value 
-        : JSON.parse(material.content_value as string) as Array<{type: string, value: string}>;
-      const types = [...new Set(content.map(item => item.type))];
-      return types;
-    } catch {
-      return [];
-    }
-  };
-
-  const contentTypes = getContentTypes();
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('ru-RU', {
       year: 'numeric',
@@ -64,35 +62,13 @@ export default function MaterialCard({ material, index, onClick }: MaterialCardP
               <Calendar className="w-4 h-4" />
               <span>{formatDate(material.created_at)}</span>
             </div>
-            {/* Показываем типы контента */}
-            {contentTypes.length > 0 && (
-              <div className="flex items-center space-x-2 mt-2">
-                {contentTypes.includes('text') && (
-                  <div className="flex items-center space-x-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                    <FileText className="w-3 h-3" />
-                    <span>Текст</span>
-                  </div>
-                )}
-                {contentTypes.includes('link') && (
-                  <div className="flex items-center space-x-1 text-xs text-gray-500 bg-blue-100 px-2 py-1 rounded">
-                    <ExternalLink className="w-3 h-3" />
-                    <span>Ссылки</span>
-                  </div>
-                )}
-                {contentTypes.includes('image') && (
-                  <div className="flex items-center space-x-1 text-xs text-gray-500 bg-green-100 px-2 py-1 rounded">
-                    <Image className="w-3 h-3" />
-                    <span>Фото</span>
-                  </div>
-                )}
-                {contentTypes.includes('file') && (
-                  <div className="flex items-center space-x-1 text-xs text-gray-500 bg-orange-100 px-2 py-1 rounded">
-                    <Download className="w-3 h-3" />
-                    <span>Файлы</span>
-                  </div>
-                )}
+            {/* Показываем индикатор наличия контента */}
+            <div className="flex items-center space-x-2 mt-2">
+              <div className="flex items-center space-x-1 text-xs text-gray-500 bg-indigo-100 px-2 py-1 rounded">
+                <FileText className="w-3 h-3" />
+                <span>Материал</span>
               </div>
-            )}
+            </div>
           </div>
         </div>
         <span className={`px-2 py-1 text-xs font-medium rounded-full ${

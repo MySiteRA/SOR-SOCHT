@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { dataPreloader } from './services/preloader';
+import { useEffect } from 'react';
 import HomePage from './pages/HomePage';
 import AdminPage from './pages/AdminPage';
 import AdminStudentsPage from './pages/AdminStudentsPage';
@@ -18,6 +21,7 @@ import { validateAdminCredentials } from './lib/api';
 import { Lock } from 'lucide-react';
 import { useLanguage } from './contexts/LanguageContext';
 import { useNavigationGuard } from './hooks/useNavigationGuard';
+import LoadingSpinner from './components/LoadingSpinner';
 
 function AppContent() {
   const { t } = useLanguage();
@@ -32,7 +36,26 @@ function AppContent() {
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState<string | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
 
+  // Инициализация предзагрузки данных
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        // Инициализируем предзагрузку при старте приложения
+        await dataPreloader.initializePreloading();
+      } catch (error) {
+        console.error('Error initializing app:', error);
+      } finally {
+        // Даем минимальное время для инициализации
+        setTimeout(() => {
+          setInitialLoading(false);
+        }, dataPreloader.hasCachedData() ? 100 : 500);
+      }
+    };
+
+    initializeApp();
+  }, []);
 
   const handleAdminLoginSuccess = () => {
     setIsAdminLoggedIn(true);
@@ -72,6 +95,28 @@ function AppContent() {
     setAdminPassword('');
     setAdminError(null);
   };
+
+  // Показываем загрузку только при первой инициализации
+  if (initialLoading) {
+    // Если есть кэшированные данные, показываем минимальную загрузку
+    const hasCache = dataPreloader.hasCachedData();
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 flex items-center justify-center">
+        {hasCache ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center"
+          >
+            <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+            <p className="text-gray-600 text-sm">Инициализация...</p>
+          </motion.div>
+        ) : (
+          <LoadingSpinner />
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
