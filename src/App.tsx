@@ -7,11 +7,13 @@ import { useEffect } from 'react';
 import HomePage from './pages/HomePage';
 import AdminPage from './pages/AdminPage';
 import AdminStudentsPage from './pages/AdminStudentsPage';
+import AdminSchedulePage from './pages/AdminSchedulePage';
 import StudentDashboardPage from './pages/StudentDashboardPage';
 import StudentProfilePage from './pages/StudentProfilePage';
 import StudentSorPage from './pages/StudentSorPage';
 import StudentSochPage from './pages/StudentSochPage';
 import StudentMaterialsPage from './pages/StudentMaterialsPage';
+import StudentSchedulePage from './pages/StudentSchedulePage';
 import ClassSelectionPage from './pages/ClassSelectionPage';
 import StudentSelectionPage from './pages/StudentSelectionPage';
 import AuthPage from './pages/AuthPage';
@@ -180,6 +182,15 @@ function AppContent() {
         />
         
         <Route 
+          path="/student-schedule" 
+          element={
+            <ProtectedRoute requiresStudentSession={true}>
+              <StudentSchedulePage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
           path="/student-sor-materials/:subjectId" 
           element={
             <ProtectedRoute requiresStudentSession={true}>
@@ -212,6 +223,15 @@ function AppContent() {
           element={
             <ProtectedRoute requiresAdminSession={true}>
               <AdminStudentsPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/admin/schedule" 
+          element={
+            <ProtectedRoute requiresAdminSession={true}>
+              <AdminSchedulePage />
             </ProtectedRoute>
           } 
         />

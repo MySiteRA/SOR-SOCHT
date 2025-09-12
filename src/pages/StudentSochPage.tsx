@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, BookOpen, MoreVertical, LogOut, Trash2, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, BookOpen, MoreVertical, LogOut, Trash2, User as UserIcon, Calendar } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -85,6 +85,9 @@ export default function StudentSochPage() {
     navigate('/student-profile');
   };
 
+  const handleScheduleClick = () => {
+    navigate('/student-schedule');
+  };
   const getStudentName = () => {
     if (!studentData) return '';
     const nameParts = studentData.student.name.split(' ');
@@ -160,6 +163,14 @@ export default function StudentSochPage() {
                       >
                         <UserIcon className="w-4 h-4 mr-3 text-indigo-500" />
                         <span className="text-gray-700">Профиль</span>
+                      </DropdownMenuItem>
+                      
+                      <DropdownMenuItem 
+                        onClick={handleScheduleClick}
+                        className="cursor-pointer"
+                      >
+                        <Calendar className="w-4 h-4 mr-3 text-blue-500" />
+                        <span className="text-gray-700">Расписание</span>
                       </DropdownMenuItem>
                       
                       <DropdownMenuItem 

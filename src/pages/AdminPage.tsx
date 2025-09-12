@@ -19,7 +19,8 @@ import { generateFileId, validateImageFile, validateFile, fileToDataUrl, getFile
 import type { Class, Student, Key as KeyType, Subject, Material } from '../lib/supabase';
 
 type AdminView = 'main' | 'classes' | 'students' | 'student-profile' | 'sor' | 'soch' | 'subjects' | 'materials';
-
+  BookOpen,
+  Calendar
 interface ContentItem {
   type: 'text' | 'link' | 'image' | 'file';
   value: string;
@@ -537,68 +538,70 @@ setStudents(prevStudents =>
             <h1 className="text-2xl font-bold text-gray-900">Админ-панель</h1>
             
             {/* Navigation */}
-            <nav className="hidden md:flex items-center space-x-6">
-              <button
-                onClick={() => setView('main')}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                  view === 'main' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'
-                }`}
-              >
-                <Home className="w-4 h-4" />
-                <span>Главная</span>
-              </button>
-              <button
-                onClick={() => handleSectionChange('SOR')}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                  view === 'sor' || view === 'materials' && currentSection === 'SOR' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:text-green-600'
-                }`}
-              >
-                <BookOpen className="w-4 h-4" />
-                <span>СОР</span>
-              </button>
-              <button
-                onClick={() => handleSectionChange('SOCH')}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                  view === 'soch' || view === 'materials' && currentSection === 'SOCH' ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:text-purple-600'
-                }`}
-              >
-                <FileText className="w-4 h-4" />
-                <span>СОЧ</span>
-              </button>
-              <button
-                onClick={() => setView('students')}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                  view === 'students' || view === 'student-profile' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                <span>Ученики</span>
-              </button>
-              <button
-                onClick={onShowStudents}
-                className="flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors flex-1 justify-center text-gray-600 hover:text-indigo-600"
-              >
-                <Users className="w-4 h-4" />
-                <span>Все</span>
-              </button>
-              <button
-                onClick={onShowStudents}
-                className="flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors text-gray-600 hover:text-indigo-600"
-              >
-                <Users className="w-4 h-4" />
-                <span>Все ученики</span>
-              </button>
-            </nav>
+<nav className="hidden md:flex items-center space-x-6">
+  <button
+    onClick={() => setView('main')}
+    className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+      view === 'main' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'
+    }`}
+  >
+    <Home className="w-4 h-4" />
+    <span>Главная</span>
+  </button>
 
-            <button
-              onClick={onLogout}
-              className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Выйти</span>
-            </button>
-          </div>
+  <button
+    onClick={() => handleSectionChange('SOR')}
+    className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+      view === 'sor' || (view === 'materials' && currentSection === 'SOR')
+        ? 'bg-green-100 text-green-700'
+        : 'text-gray-600 hover:text-green-600'
+    }`}
+  >
+    <BookOpen className="w-4 h-4" />
+    <span>СОР</span>
+  </button>
 
+  <button
+    onClick={() => handleSectionChange('SOCH')}
+    className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+      view === 'soch' || (view === 'materials' && currentSection === 'SOCH')
+        ? 'bg-purple-100 text-purple-700'
+        : 'text-gray-600 hover:text-purple-600'
+    }`}
+  >
+    <FileText className="w-4 h-4" />
+    <span>СОЧ</span>
+  </button>
+
+  <button
+    onClick={() => setView('students')}
+    className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+      view === 'students' || view === 'student-profile'
+        ? 'bg-blue-100 text-blue-700'
+        : 'text-gray-600 hover:text-blue-600'
+    }`}
+  >
+    <Users className="w-4 h-4" />
+    <span>Ученики</span>
+  </button>
+
+  {/* ✅ Заменили "Все ученики" на "Расписание" */}
+  <button
+    onClick={() => setView('schedule')}
+    className="flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors text-gray-600 hover:text-indigo-600"
+  >
+    <Calendar className="w-4 h-4" />
+    <span>Расписание</span>
+  </button>
+</nav>
+
+<button
+  onClick={onLogout}
+  className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+>
+  <LogOut className="w-4 h-4" />
+  <span>Выйти</span>
+</button>
           {/* Mobile Navigation */}
           <nav className="md:hidden mt-4 flex flex-wrap gap-2">
             <button
@@ -639,6 +642,7 @@ setStudents(prevStudents =>
             </button>
           </nav>
         </div>
+      </div>
       </header>
 
       <div className="container mx-auto px-4 py-8">
