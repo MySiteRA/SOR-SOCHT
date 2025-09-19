@@ -131,3 +131,56 @@ export function isCameraSupported(): boolean {
 export function isMobileDevice(): boolean {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
+
+// Sanitize filename for safe storage key usage
+export function sanitizeFilename(filename: string): string {
+  const transliterationMap: { [key: string]: string } = {
+    // Русские буквы
+    'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'E', 'Ж': 'Zh',
+    'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N', 'О': 'O',
+    'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U', 'Ф': 'F', 'Х': 'Kh', 'Ц': 'Ts',
+    'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Shch', 'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya',
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e', 'ж': 'zh',
+    'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o',
+    'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts',
+    'ч': 'ch', 'ш': 'sh', 'щ': 'shch', 'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+    // Узбекские буквы
+    'Ў': 'U', 'Қ': 'Q', 'Ғ': 'G', 'Ҳ': 'H', 'ў': 'u', 'қ': 'q', 'ғ': 'g', 'ҳ': 'h'
+  };
+  
+  console.log('sanitizeFilename input:', filename);
+  
+  return filename
+    .split('')
+    .map(char => transliterationMap[char] || char)
+    .join('')
+    .replace(/[^a-zA-Z0-9.\-_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+// Функция для создания безопасного ключа для названий классов
+export function makeSafeKey(className: string): string {
+  const translitMap: Record<string, string> = {
+    // Русские буквы
+    "А":"A","Б":"B","В":"V","Г":"G","Д":"D","Е":"E","Ё":"E","Ж":"Zh","З":"Z","И":"I",
+    "Й":"Y","К":"K","Л":"L","М":"M","Н":"N","О":"O","П":"P","Р":"R","С":"S","Т":"T",
+    "У":"U","Ф":"F","Х":"Kh","Ц":"Ts","Ч":"Ch","Ш":"Sh","Щ":"Sch","Ъ":"","Ы":"Y","Ь":"",
+    "Э":"E","Ю":"Yu","Я":"Ya","а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"e",
+    "ж":"zh","з":"z","и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p",
+    "р":"r","с":"s","т":"t","у":"u","ф":"f","х":"kh","ц":"ts","ч":"ch","ш":"sh","щ":"sch",
+    "ъ":"","ы":"y","ь":"","э":"e","ю":"yu","я":"ya",
+    // Узбекские буквы
+    "Ў":"U","Қ":"Q","Ғ":"G","Ҳ":"H","ў":"u","қ":"q","ғ":"g","ҳ":"h"
+  };
+  
+  console.log('makeSafeKey input:', className);
+  
+  return className
+    .split("")
+    .map(ch => translitMap[ch] || ch)
+    .join("")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}

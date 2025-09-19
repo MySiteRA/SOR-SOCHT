@@ -95,6 +95,42 @@ export interface LoginSession {
   user_agent: string | null;
 }
 
+export interface Game {
+  id: string;
+  class_id: string;
+  game_type: 'truth_or_dare' | 'quiz' | 'mafia';
+  status: 'waiting' | 'started' | 'finished';
+  created_by: string;
+  max_players: number;
+  current_round: number;
+  settings: any;
+  created_at: string;
+  started_at?: string;
+  finished_at?: string;
+}
+
+export interface GamePlayer {
+  id: string;
+  game_id: string;
+  player_id: string;
+  player_name: string;
+  role: string;
+  score: number;
+  is_alive: boolean;
+  joined_at: string;
+}
+
+export interface GameEvent {
+  id: string;
+  game_id: string;
+  player_id?: string;
+  player_name?: string;
+  event_type: 'join' | 'leave' | 'question' | 'answer' | 'vote' | 'action' | 'system' | 'chat';
+  content: string;
+  metadata?: any;
+  created_at: string;
+}
+
 export interface Material {
   id: string;
   subject_id: string;
@@ -123,4 +159,4 @@ export type MaterialPayload = {
   quarter?: number | null;
   language?: 'ru' | 'uz' | 'en' | null;
   content_value: MaterialContentItem[];
-};
+}

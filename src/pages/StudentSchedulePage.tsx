@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Calendar, Clock, MapPin, User, MoreVertical, LogOut, Trash2, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, User, MoreVertical, LogOut, Trash2, User as UserIcon, MessageCircle, CheckCircle, Gamepad2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { supabase } from '../lib/supabase';
+import { getLatestScheduleForClass } from '../lib/api';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +39,7 @@ export default function StudentSchedulePage() {
   const navigate = useNavigate();
   const [studentData, setStudentData] = useState<{student: Student, className: string} | null>(null);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+  const [scheduleFileUrl, setScheduleFileUrl] = useState<string | null>(null);
   const [currentLesson, setCurrentLesson] = useState<CurrentLesson>({
     current: null,
     next: null,
@@ -83,6 +85,15 @@ export default function StudentSchedulePage() {
       if (scheduleError) throw scheduleError;
 
       setSchedule(data || []);
+
+      // Fetch the latest schedule file URL
+      try {
+        const scheduleFile = await getLatestScheduleForClass(classId);
+        setScheduleFileUrl(scheduleFile?.public_url || null);
+      } catch (err) {
+        console.warn('Could not load schedule file URL:', err);
+        setScheduleFileUrl(null);
+      }
     } catch (err) {
       setError('Ошибка загрузки расписания');
     } finally {
@@ -176,6 +187,14 @@ export default function StudentSchedulePage() {
     navigate('/student-profile');
   };
 
+  const handleChatClick = () => {
+    navigate('/student-chat');
+  };
+
+  const handleGamesClick = () => {
+    navigate('/student-games');
+  };
+
   if (!studentData) {
     return null;
   }
@@ -241,6 +260,16 @@ export default function StudentSchedulePage() {
                         <span className="text-gray-700">Профиль</span>
                       </DropdownMenuItem>
                       
+                      <DropdownMenuItem onClick={handleChatClick} className="cursor-pointer">
+                        <MessageCircle className="w-4 h-4 mr-3 text-green-500" />
+                        <span className="text-gray-700">Чат класса</span>
+                      </DropdownMenuItem>
+                      
+                     <DropdownMenuItem onClick={handleGamesClick} className="cursor-pointer">
+                       <Gamepad2 className="w-4 h-4 mr-3 text-purple-500" />
+                       <span className="text-gray-700">Игры с классом</span>
+                     </DropdownMenuItem>
+                     
                       <DropdownMenuItem onClick={handleForgetSession} className="cursor-pointer">
                         <Trash2 className="w-4 h-4 mr-3 text-orange-500" />
                         <span className="text-gray-700">Забыть сеанс (полный выход)</span>
@@ -397,7 +426,24 @@ export default function StudentSchedulePage() {
             className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
           >
             <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-4 border-b border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900">Расписание на неделю</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">Расписание на неделю</h2>
+                
+                {/* Кнопка для открытия файла расписания */}
+                {scheduleFileUrl && (
+                  <motion.a
+                    href={scheduleFileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm shadow-md"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>Файл расписания</span>
+                  </motion.a>
+                )}
+              </div>
             </div>
 
             <div className="overflow-x-auto">

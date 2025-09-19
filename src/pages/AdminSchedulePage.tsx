@@ -5,7 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ScheduleUploadTest from '../components/ScheduleUploadTest';
 import { getClasses } from '../lib/api';
+import { uploadScheduleFile } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
 import type { Class } from '../lib/supabase';
@@ -164,38 +166,70 @@ export default function AdminSchedulePage() {
       setError(null);
       setSuccess(null);
 
-      // Парсим Excel файл
+      // Логируем детали для тестирования
+      console.log('Starting upload for class:', {
+        className: classItem.name,
+        classId: classItem.id,
+        fileName: file.name,
+        fileSize: file.size
+      });
+
+      // Загружаем файл в Storage и сохраняем в таблицу schedules
+      const publicUrl = await uploadScheduleFile(classItem.id, classItem.name, file);
+      
+      console.log('File uploaded successfully:', {
+        publicUrl,
+        className: classItem.name
+      });
+
+      // Парсим Excel файл для таблицы schedule
       const scheduleItems = await parseExcelFile(file);
       
-      if (scheduleItems.length === 0) {
-        setError('В файле не найдено данных расписания');
-        return;
+      if (scheduleItems.length > 0) {
+        // Удаляем существующее расписание для класса
+        const { error: deleteError } = await supabase
+          .from('schedule')
+          .delete()
+          .eq('class_id', classItem.id);
+
+        if (deleteError) throw deleteError;
+
+        // Добавляем новое расписание
+        const scheduleData = scheduleItems.map(item => ({
+          class_id: classItem.id,
+          ...item
+        }));
+
+        const { error: insertError } = await supabase
+          .from('schedule')
+          .insert(scheduleData);
+
+        if (insertError) throw insertError;
+        
+        setSuccess(`Расписание для класса ${classItem.name} успешно загружено. Файл сохранен и ${scheduleItems.length} записей добавлено в расписание.`);
+      } else {
+        setSuccess(`Файл расписания для класса ${classItem.name} успешно загружен. Данные расписания не найдены в файле.`);
       }
 
-      // Удаляем существующее расписание для класса
-      const { error: deleteError } = await supabase
-        .from('schedule')
-        .delete()
-        .eq('class_id', classItem.id);
 
-      if (deleteError) throw deleteError;
-
-      // Добавляем новое расписание
-      const scheduleData = scheduleItems.map(item => ({
-        class_id: classItem.id,
-        ...item
-      }));
-
-      const { error: insertError } = await supabase
-        .from('schedule')
-        .insert(scheduleData);
-
-      if (insertError) throw insertError;
-
-      setSuccess(`Расписание для класса ${classItem.name} успешно загружено (${scheduleItems.length} записей)`);
       setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки расписания');
+      console.error('Schedule upload error:', err);
+      
+      // Более детальная обработка ошибок
+      let errorMessage = 'Ошибка загрузки расписания';
+      
+      if (err.message?.includes('Invalid key')) {
+        errorMessage = 'Ошибка: недопустимые символы в названии файла. Файл был автоматически переименован, попробуйте еще раз.';
+      } else if (err.message?.includes('already exists')) {
+        errorMessage = 'Файл с таким именем уже существует. Попробуйте еще раз.';
+      } else if (err.message?.includes('Bucket not found')) {
+        errorMessage = 'Ошибка: bucket "schedules" не найден в Supabase Storage.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setUploadingClass(null);
       // Сбрасываем значение input
@@ -293,6 +327,8 @@ export default function AdminSchedulePage() {
               09:00-09:45
             </p>
             <p>• Если время не указано, будет использовано стандартное расписание звонков</p>
+            <p>• Файлы сохраняются в Storage в папке schedules/&lt;класс&gt;/</p>
+            <p>• Названия классов с кириллицей автоматически транслитерируются</p>
           </div>
         </motion.div>
 
@@ -349,6 +385,8 @@ export default function AdminSchedulePage() {
                     )}
                   </motion.div>
                 </label>
+
+                {/* Показываем загруженные файлы */}
 
                 <div className="text-center">
                   <p className="text-xs text-gray-500">
@@ -411,6 +449,28 @@ export default function AdminSchedulePage() {
               </tbody>
             </table>
           </div>
+        </motion.div>
+
+        {/* Test Upload Component */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mt-8"
+        >
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Тестирование загрузки для класса 11-Ё</h3>
+          <ScheduleUploadTest 
+            className="11-Ё"
+            onSuccess={(result) => {
+              console.log('Test upload successful:', result);
+              setSuccess(`Тест успешен! Файл сохранен: ${result.filePath}`);
+              setTimeout(() => setSuccess(null), 10000);
+            }}
+            onError={(error) => {
+              console.error('Test upload failed:', error);
+              setError(`Тест не прошел: ${error}`);
+            }}
+          />
         </motion.div>
       </div>
     </div>

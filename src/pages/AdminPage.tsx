@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Key, Edit, Trash2, Copy, Plus, Calendar, Upload, FileText,
-  Users, BookOpen, Home, LogOut, X, Download, ExternalLink, Image, Minus, File
+  Users, BookOpen, Home, LogOut, X, Download, ExternalLink, Image, Minus, File,
+  RefreshCw, Loader2, CheckCircle, AlertCircle, Clock, MapPin, User, FileSpreadsheet
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -16,11 +17,12 @@ import {
   createMaterial, deleteMaterial, resetStudentPassword, extractGradeFromClassName
 } from '../lib/api';
 import { generateFileId, validateImageFile, validateFile, fileToDataUrl, getFileNameFromUrl, isImageFile } from '../utils/fileUtils';
+import { supabase } from '../lib/supabase';
+import * as XLSX from 'xlsx';
 import type { Class, Student, Key as KeyType, Subject, Material } from '../lib/supabase';
 
-type AdminView = 'main' | 'classes' | 'students' | 'student-profile' | 'sor' | 'soch' | 'subjects' | 'materials';
-  BookOpen,
-  Calendar
+type AdminView = 'main' | 'classes' | 'students' | 'student-profile' | 'sor' | 'soch' | 'subjects' | 'materials' | 'schedule';
+
 interface ContentItem {
   type: 'text' | 'link' | 'image' | 'file';
   value: string;
@@ -39,6 +41,19 @@ interface AdminPageProps {
   onShowStudents: () => void;
 }
 
+interface ScheduleItem {
+  id: string;
+  class_id: string;
+  day_of_week: string;
+  lesson_number: number;
+  subject: string;
+  teacher: string;
+  room: string;
+  start_time: string;
+  end_time: string;
+  created_at: string;
+}
+
 export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) {
   // ====== Основные состояния ======
   const [view, setView] = useState<AdminView>('main');
@@ -55,6 +70,10 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // ====== Расписание ======
+  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+  const [uploadingClass, setUploadingClass] = useState<string | null>(null);
 
   // ====== Модальные окна ======
   const [showGenerateKeyModal, setShowGenerateKeyModal] = useState(false);
@@ -79,9 +98,11 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
   const [uploadedFiles, setUploadedFiles] = useState<FileItem[]>([]);
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
 
+  const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+
   // ====== Загрузка данных ======
   useEffect(() => {
-    if (view === 'classes' || view === 'sor' || view === 'soch' || view === 'students' || view === 'subjects') {
+    if (view === 'classes' || view === 'sor' || view === 'soch' || view === 'students' || view === 'subjects' || view === 'schedule') {
       loadClasses();
     }
   }, [view]);
@@ -159,6 +180,29 @@ export default function AdminPage({ onLogout, onShowStudents }: AdminPageProps) 
       setView('materials');
     } catch (err) {
       setError('Ошибка загрузки материалов');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSchedule = async (classItem: Class) => {
+    try {
+      setLoading(true);
+      setError(null);
+      setSelectedClass(classItem);
+
+      const { data, error: scheduleError } = await supabase
+        .from('schedule')
+        .select('*')
+        .eq('class_id', classItem.id)
+        .order('day_of_week')
+        .order('lesson_number');
+
+      if (scheduleError) throw scheduleError;
+
+      setSchedule(data || []);
+    } catch (err) {
+      setError('Ошибка загрузки расписания');
     } finally {
       setLoading(false);
     }
@@ -385,6 +429,173 @@ setStudents(prevStudents =>
     }
   };
 
+  const parseExcelFile = (file: File): Promise<Omit<ScheduleItem, 'id' | 'class_id' | 'created_at'>[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+          const scheduleItems: Omit<ScheduleItem, 'id' | 'class_id' | 'created_at'>[] = [];
+          
+          // Предполагаем, что первая строка содержит заголовки
+          // Формат: Урок | Понедельник | Вторник | Среда | Четверг | Пятница | Суббота
+          for (let rowIndex = 1; rowIndex < jsonData.length; rowIndex++) {
+            const row = jsonData[rowIndex] as any[];
+            if (!row || row.length < 2) continue;
+
+            const lessonNumber = parseInt(row[0]) || rowIndex;
+            
+            // Обрабатываем каждый день недели
+            for (let dayIndex = 1; dayIndex < Math.min(row.length, 7); dayIndex++) {
+              const cellValue = row[dayIndex];
+              if (!cellValue || typeof cellValue !== 'string') continue;
+
+              const dayName = days[dayIndex - 1];
+              
+              // Парсим содержимое ячейки
+              // Ожидаемый формат: "Предмет\nУчитель\nКабинет\n09:00-09:45"
+              const lines = cellValue.split('\n').map(line => line.trim()).filter(line => line);
+              
+              if (lines.length >= 1) {
+                const subject = lines[0] || '';
+                const teacher = lines[1] || '';
+                const room = lines[2] || '';
+                const timeRange = lines[3] || '';
+                
+                // Парсим время
+                let startTime = '09:00';
+                let endTime = '09:45';
+                
+                if (timeRange && timeRange.includes('-')) {
+                  const [start, end] = timeRange.split('-');
+                  if (start && end) {
+                    startTime = start.trim();
+                    endTime = end.trim();
+                  }
+                } else {
+                  // Стандартное время уроков
+                  const lessonTimes = [
+                    { start: '08:00', end: '08:45' },
+                    { start: '08:55', end: '09:40' },
+                    { start: '09:50', end: '10:35' },
+                    { start: '10:55', end: '11:40' },
+                    { start: '11:50', end: '12:35' },
+                    { start: '12:45', end: '13:30' },
+                    { start: '13:40', end: '14:25' },
+                    { start: '14:35', end: '15:20' },
+                    { start: '15:30', end: '16:15' },
+                    { start: '16:25', end: '17:10' }
+                  ];
+                  
+                  if (lessonNumber >= 1 && lessonNumber <= lessonTimes.length) {
+                    const time = lessonTimes[lessonNumber - 1];
+                    startTime = time.start;
+                    endTime = time.end;
+                  }
+                }
+
+                scheduleItems.push({
+                  day_of_week: dayName,
+                  lesson_number: lessonNumber,
+                  subject,
+                  teacher,
+                  room,
+                  start_time: startTime,
+                  end_time: endTime
+                });
+              }
+            }
+          }
+
+          resolve(scheduleItems);
+        } catch (error) {
+          reject(new Error('Ошибка парсинга Excel файла'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Ошибка чтения файла'));
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const handleScheduleFileUpload = async (classItem: Class, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Проверяем тип файла
+    const validTypes = [
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+    
+    if (!validTypes.includes(file.type) && !file.name.match(/\.(xls|xlsx)$/i)) {
+      setError('Пожалуйста, выберите файл Excel (.xls или .xlsx)');
+      return;
+    }
+
+    try {
+      setUploadingClass(classItem.id);
+      setError(null);
+      setSuccess(null);
+
+      // Загружаем файл в Supabase Storage
+      const fileName = `${classItem.name}_${Date.now()}.${file.name.split('.').pop()}`;
+      const filePath = `${classItem.id}/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('schedules')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Парсим Excel файл
+      const scheduleItems = await parseExcelFile(file);
+      
+      if (scheduleItems.length === 0) {
+        setError('В файле не найдено данных расписания');
+        return;
+      }
+
+      // Удаляем существующее расписание для класса
+      const { error: deleteError } = await supabase
+        .from('schedule')
+        .delete()
+        .eq('class_id', classItem.id);
+
+      if (deleteError) throw deleteError;
+
+      // Добавляем новое расписание
+      const scheduleData = scheduleItems.map(item => ({
+        class_id: classItem.id,
+        ...item
+      }));
+
+      const { error: insertError } = await supabase
+        .from('schedule')
+        .insert(scheduleData);
+
+      if (insertError) throw insertError;
+
+      setSuccess(`Расписание для класса ${classItem.name} успешно загружено (${scheduleItems.length} записей)`);
+      setTimeout(() => setSuccess(null), 5000);
+      
+      // Если это выбранный класс, обновляем расписание
+      if (selectedClass?.id === classItem.id) {
+        await loadSchedule(classItem);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Ошибка загрузки расписания');
+    } finally {
+      setUploadingClass(null);
+      // Сбрасываем значение input
+      event.target.value = '';
+    }
+  };
+
   const resetMaterialForm = () => {
     setMaterialTitle('');
     setEnabledContentTypes(new Set());
@@ -445,6 +656,16 @@ setStudents(prevStudents =>
     }
   };
 
+  const getScheduleForDay = (day: string) => {
+    return schedule
+      .filter(item => item.day_of_week === day)
+      .sort((a, b) => a.lesson_number - b.lesson_number);
+  };
+
+  const formatTime = (time: string) => {
+    return time.slice(0, 5); // Убираем секунды
+  };
+
   const handleBack = () => {
     if (view === 'materials') {
       setView('subjects');
@@ -473,6 +694,13 @@ setStudents(prevStudents =>
       setView('main');
       setSelectedClass(null);
       setStudents([]);
+    } else if (view === 'schedule') {
+      if (selectedClass) {
+        setSelectedClass(null);
+        setSchedule([]);
+      } else {
+        setView('main');
+      }
     }
   };
 
@@ -585,10 +813,13 @@ setStudents(prevStudents =>
     <span>Ученики</span>
   </button>
 
-  {/* ✅ Заменили "Все ученики" на "Расписание" */}
   <button
     onClick={() => setView('schedule')}
-    className="flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors text-gray-600 hover:text-indigo-600"
+    className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+      view === 'schedule'
+        ? 'bg-indigo-100 text-indigo-700'
+        : 'text-gray-600 hover:text-indigo-600'
+    }`}
   >
     <Calendar className="w-4 h-4" />
     <span>Расписание</span>
@@ -602,6 +833,7 @@ setStudents(prevStudents =>
   <LogOut className="w-4 h-4" />
   <span>Выйти</span>
 </button>
+          </div>
           {/* Mobile Navigation */}
           <nav className="md:hidden mt-4 flex flex-wrap gap-2">
             <button
@@ -642,7 +874,6 @@ setStudents(prevStudents =>
             </button>
           </nav>
         </div>
-      </div>
       </header>
 
       <div className="container mx-auto px-4 py-8">
@@ -666,12 +897,13 @@ setStudents(prevStudents =>
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6"
+              className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center space-x-2"
             >
-              {error}
+              <AlertCircle className="w-4 h-4" />
+              <span>{error}</span>
               <button
                 onClick={() => setError(null)}
-                className="ml-2 text-red-500 hover:text-red-700"
+                className="ml-auto text-red-500 hover:text-red-700"
               >
                 ✕
               </button>
@@ -683,12 +915,13 @@ setStudents(prevStudents =>
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="bg-green-100 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6"
+              className="bg-green-100 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6 flex items-center space-x-2"
             >
-              {success}
+              <CheckCircle className="w-4 h-4" />
+              <span>{success}</span>
               <button
                 onClick={() => setSuccess(null)}
-                className="ml-2 text-green-500 hover:text-green-700"
+                className="ml-auto text-green-500 hover:text-green-700"
               >
                 ✕
               </button>
@@ -751,6 +984,21 @@ setStudents(prevStudents =>
                   </div>
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">Ученики</h3>
                   <p className="text-gray-600">Управление учениками и ключами</p>
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.02, y: -5 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setView('schedule')}
+                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
+              >
+                <div className="text-center">
+                  <div className="bg-indigo-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Calendar className="w-10 h-10 text-indigo-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Расписание</h3>
+                  <p className="text-gray-600">Управление расписанием занятий</p>
                 </div>
               </motion.div>
             </div>
@@ -1095,6 +1343,227 @@ setStudents(prevStudents =>
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Schedule View */}
+        {view === 'schedule' && (
+          <div className="space-y-8">
+            {!selectedClass ? (
+              <>
+                {/* Instructions */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-blue-50 border border-blue-200 rounded-xl p-6"
+                >
+                  <h3 className="text-lg font-semibold text-blue-900 mb-3">Инструкция по загрузке расписания</h3>
+                  <div className="text-blue-800 space-y-2 text-sm">
+                    <p>• Файл должен быть в формате Excel (.xls или .xlsx)</p>
+                    <p>• Первая строка - заголовки: Урок | Понедельник | Вторник | Среда | Четверг | Пятница | Суббота</p>
+                    <p>• В каждой ячейке урока указывайте данные через перенос строки:</p>
+                    <p className="ml-4 font-mono bg-blue-100 p-2 rounded">
+                      Название предмета<br/>
+                      Учитель<br/>
+                      Кабинет<br/>
+                      09:00-09:45
+                    </p>
+                    <p>• Если время не указано, будет использовано стандартное расписание звонков</p>
+                  </div>
+                </motion.div>
+
+                {/* Classes List */}
+                {loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <LoadingSpinner />
+                  </div>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                  >
+                    {classes.map((classItem, index) => (
+                      <motion.div
+                        key={classItem.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="bg-white rounded-xl shadow-lg border border-gray-100 p-6"
+                      >
+                        <div className="text-center mb-6">
+                          <div className="w-16 h-16 bg-indigo-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                            <Calendar className="w-8 h-8 text-indigo-600" />
+                          </div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">{classItem.name}</h3>
+                          <p className="text-gray-600 text-sm">Загрузите расписание для класса</p>
+                        </div>
+
+                        <div className="space-y-4">
+                          <label className="block">
+                            <input
+                              type="file"
+                              accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                              onChange={(e) => handleScheduleFileUpload(classItem, e)}
+                              className="hidden"
+                              disabled={uploadingClass === classItem.id}
+                            />
+                            <motion.div
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-xl font-medium transition-all duration-300 cursor-pointer ${
+                                uploadingClass === classItem.id
+                                  ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl'
+                              }`}
+                            >
+                              {uploadingClass === classItem.id ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  <span>Загрузка...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="w-4 h-4" />
+                                  <span>Загрузить расписание</span>
+                                </>
+                              )}
+                            </motion.div>
+                          </label>
+
+                          <button
+                            onClick={() => loadSchedule(classItem)}
+                            className="w-full flex items-center justify-center space-x-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-200 transition-colors font-medium"
+                          >
+                            <Calendar className="w-4 h-4" />
+                            <span>Просмотреть расписание</span>
+                          </button>
+
+                          <div className="text-center">
+                            <p className="text-xs text-gray-500">
+                              Поддерживаются файлы .xls и .xlsx
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
+              </>
+            ) : (
+              /* Schedule Display */
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <button
+                      onClick={() => {
+                        setSelectedClass(null);
+                        setSchedule([]);
+                      }}
+                      className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      <ArrowLeft className="w-5 h-5" />
+                      <span>Назад к классам</span>
+                    </button>
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">
+                        Расписание класса {selectedClass.name}
+                      </h2>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => loadSchedule(selectedClass)}
+                    className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Обновить</span>
+                  </button>
+                </div>
+
+                {loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <LoadingSpinner />
+                  </div>
+                ) : schedule.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white rounded-xl shadow-lg border border-gray-100 p-12 text-center"
+                  >
+                    <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-xl font-medium text-gray-600 mb-2">Расписание не загружено</h3>
+                    <p className="text-gray-500">Загрузите файл Excel с расписанием для этого класса</p>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
+                  >
+                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-4 border-b border-gray-100">
+                      <h3 className="text-lg font-semibold text-gray-900">Расписание на неделю</h3>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-medium text-gray-900 border-r border-gray-200 min-w-[80px]">
+                              Урок
+                            </th>
+                            {days.map(day => (
+                              <th key={day} className="px-4 py-3 text-left font-medium text-gray-900 border-r border-gray-200 min-w-[200px]">
+                                {day}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {Array.from({ length: 10 }, (_, i) => i + 1).map(lessonNumber => (
+                            <tr key={lessonNumber} className="hover:bg-gray-50">
+                              <td className="px-4 py-4 font-medium text-gray-900 border-r border-gray-200 text-center">
+                                {lessonNumber}
+                              </td>
+                              {days.map(day => {
+                                const daySchedule = getScheduleForDay(day);
+                                const lesson = daySchedule.find(item => item.lesson_number === lessonNumber);
+                                
+                                return (
+                                  <td key={`${day}-${lessonNumber}`} className="px-4 py-4 border-r border-gray-200">
+                                    {lesson ? (
+                                      <div className="space-y-1">
+                                        <div className="font-medium text-gray-900 text-sm">
+                                          {lesson.subject}
+                                        </div>
+                                        <div className="text-xs text-gray-600 flex items-center space-x-1">
+                                          <User className="w-3 h-3" />
+                                          <span>{lesson.teacher}</span>
+                                        </div>
+                                        <div className="text-xs text-gray-500 flex items-center space-x-1">
+                                          <MapPin className="w-3 h-3" />
+                                          <span>{lesson.room}</span>
+                                        </div>
+                                        <div className="text-xs text-indigo-600 font-medium flex items-center space-x-1">
+                                          <Clock className="w-3 h-3" />
+                                          <span>{formatTime(lesson.start_time)} - {formatTime(lesson.end_time)}</span>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-gray-400 text-center text-sm">—</div>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

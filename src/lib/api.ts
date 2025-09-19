@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import { verifyStudentPassword, setStudentPassword } from './auth';
 import { dataPreloader } from '../services/preloader';
 import { avatarPreloader } from '../services/avatarPreloader';
+import { sanitizeFilename, makeSafeKey } from '../utils/fileUtils';
+import { uploadScheduleFile as uploadScheduleFileHelper, getLatestScheduleForClass, getSchedulesForClass, deleteScheduleFile } from '../utils/scheduleHelpers';
 import type { Class, Student, Key, Subject, FileRecord, Download, Material, MaterialContentItem, MaterialPayload, StudentProfile, LoginSession } from './supabase';
 
 // Helper function to convert data URL to blob and upload to storage
@@ -545,6 +547,16 @@ export async function updateMaterial(
   return data;
 }
 
+// ==================== Расписание ====================
+export async function uploadScheduleFile(classId: string, className: string, file: File): Promise<string> {
+  const publicUrl = await uploadScheduleFileHelper(classId, className, file);
+  await logAction('SCHEDULE_UPLOADED', `Schedule file uploaded for class ${className}`);
+  return publicUrl;
+}
+
+// Экспортируем дополнительные функции для работы с расписанием
+export { getLatestScheduleForClass, getSchedulesForClass, deleteScheduleFile } from '../utils/scheduleHelpers';
+
 // Вспомогательная функция для получения grade из названия класса
 export function extractGradeFromClassName(className: string): number {
   const grade = parseInt(className.split('-')[0]);
@@ -565,7 +577,8 @@ export async function getFilesBySubjectAndCategory(subjectId: string, category: 
 }
 
 export async function uploadFile(file: File, classId: string, subjectId: string, category: 'SOR' | 'SOCH'): Promise<FileRecord> {
-  const filePath = `${classId}/${category}/${subjectId}/${Date.now()}-${file.name}`;
+  const sanitizedFilename = sanitizeFilename(file.name);
+  const filePath = `${classId}/${category}/${subjectId}/${Date.now()}-${sanitizedFilename}`;
   const { error: uploadError } = await supabase.storage.from('school-files').upload(filePath, file);
   if (uploadError) throw uploadError;
   const { data: urlData } = supabase.storage.from('school-files').getPublicUrl(filePath);

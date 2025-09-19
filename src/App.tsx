@@ -14,6 +14,9 @@ import StudentSorPage from './pages/StudentSorPage';
 import StudentSochPage from './pages/StudentSochPage';
 import StudentMaterialsPage from './pages/StudentMaterialsPage';
 import StudentSchedulePage from './pages/StudentSchedulePage';
+import StudentChatPage from './pages/StudentChatPage';
+import StudentGamesPage from './pages/StudentGamesPage';
+import StudentGamePage from './pages/StudentGamePage';
 import ClassSelectionPage from './pages/ClassSelectionPage';
 import StudentSelectionPage from './pages/StudentSelectionPage';
 import AuthPage from './pages/AuthPage';
@@ -186,6 +189,33 @@ function AppContent() {
           element={
             <ProtectedRoute requiresStudentSession={true}>
               <StudentSchedulePage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-chat" 
+          element={
+            <ProtectedRoute requiresStudentSession={true}>
+              <StudentChatPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-games" 
+          element={
+            <ProtectedRoute requiresStudentSession={true}>
+              <StudentGamesPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="/student-game/:gameId" 
+          element={
+            <ProtectedRoute requiresStudentSession={true}>
+              <StudentGamePage />
             </ProtectedRoute>
           } 
         />

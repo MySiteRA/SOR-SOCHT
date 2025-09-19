@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, BookOpen, MoreVertical, LogOut, Trash2, User as UserIcon, Calendar } from 'lucide-react';
+import { ArrowLeft, BookOpen, MoreVertical, LogOut, Trash2, User as UserIcon, Calendar, MessageCircle, Gamepad2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -88,6 +88,15 @@ export default function StudentSorPage() {
   const handleScheduleClick = () => {
     navigate('/student-schedule');
   };
+
+  const handleChatClick = () => {
+    navigate('/student-chat');
+  };
+
+  const handleGamesClick = () => {
+    navigate('/student-games');
+  };
+  
   const getStudentName = () => {
     if (!studentData) return '';
     const nameParts = studentData.student.name.split(' ');
@@ -171,6 +180,22 @@ export default function StudentSorPage() {
                       >
                         <Calendar className="w-4 h-4 mr-3 text-blue-500" />
                         <span className="text-gray-700">Расписание</span>
+                      </DropdownMenuItem>
+                      
+                      <DropdownMenuItem 
+                        onClick={handleChatClick}
+                        className="cursor-pointer"
+                      >
+                        <MessageCircle className="w-4 h-4 mr-3 text-green-500" />
+                        <span className="text-gray-700">Чат класса</span>
+                      </DropdownMenuItem>
+                      
+                      <DropdownMenuItem 
+                        onClick={handleGamesClick}
+                        className="cursor-pointer"
+                      >
+                        <Gamepad2 className="w-4 h-4 mr-3 text-purple-500" />
+                        <span className="text-gray-700">Игры с классом</span>
                       </DropdownMenuItem>
                       
                       <DropdownMenuItem 

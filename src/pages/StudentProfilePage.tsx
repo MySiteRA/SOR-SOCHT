@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, User, Shield, Camera, Upload, Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Monitor, Smartphone, Calendar, Clock, Trash2 } from 'lucide-react';
+import { ArrowLeft, User, Shield, Camera, Upload, Eye, EyeOff, Loader2, CheckCircle, AlertCircle, Monitor, Smartphone, Calendar, Clock, Trash2, MessageCircle, Gamepad2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -212,6 +212,9 @@ export default function StudentProfilePage() {
       setPasswordLoading(false);
     }
   };
+  const handleChatClick = () => {
+    navigate('/student-chat');
+  };
 
   const formatDeviceInfo = (deviceInfo: any) => {
     if (!deviceInfo || typeof deviceInfo !== 'object') {
@@ -371,6 +374,22 @@ export default function StudentProfilePage() {
               >
                 <Shield className="w-4 h-4" />
                 <span>Безопасность</span>
+              </button>
+              
+              <button
+                onClick={() => navigate('/student-chat')}
+                className="flex items-center space-x-2 px-6 py-4 font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Чат класса</span>
+              </button>
+              
+              <button
+                onClick={() => navigate('/student-games')}
+                className="flex items-center space-x-2 px-6 py-4 font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors"
+              >
+                <Gamepad2 className="w-4 h-4" />
+                <span>Игры с классом</span>
               </button>
             </div>
 

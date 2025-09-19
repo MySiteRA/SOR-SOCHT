@@ -205,6 +205,15 @@ const translations = {
     'dashboard.sorDesc': 'Суммативное оценивание за раздел',
     'dashboard.sochDesc': 'Суммативное оценивание за четверть',
     'dashboard.noMaterialsForSubject': 'Материалы для этого предмета пока не добавлены',
+    
+    // Чат
+    'chat.title': 'Чат класса',
+    'chat.placeholder': 'Напишите сообщение...',
+    'chat.send': 'Отправить',
+    'chat.empty': 'Чат пуст',
+    'chat.emptyDesc': 'Станьте первым, кто напишет сообщение!',
+    'chat.messageCount': 'сообщений',
+    'chat.enterToSend': 'Enter - отправить, Shift+Enter - новая строка',
   },
   
   uz: {
@@ -390,6 +399,15 @@ const translations = {
     'dashboard.sorDesc': 'Bo\'lim bo\'yicha summativ baholash',
     'dashboard.sochDesc': 'Chorak bo\'yicha summativ baholash',
     'dashboard.noMaterialsForSubject': 'Bu fan uchun materiallar hali qo\'shilmagan',
+    
+    // Чат
+    'chat.title': 'Sinf chati',
+    'chat.placeholder': 'Xabar yozing...',
+    'chat.send': 'Yuborish',
+    'chat.empty': 'Chat bo\'sh',
+    'chat.emptyDesc': 'Birinchi xabar yozuvchi bo\'ling!',
+    'chat.messageCount': 'xabarlar',
+    'chat.enterToSend': 'Enter - yuborish, Shift+Enter - yangi qator',
   },
   
   en: {
@@ -575,6 +593,15 @@ const translations = {
     'dashboard.sorDesc': 'Summative assessment for the section',
     'dashboard.sochDesc': 'Summative assessment for the quarter',
     'dashboard.noMaterialsForSubject': 'Materials for this subject have not been added yet',
+    
+    // Чат
+    'chat.title': 'Class Chat',
+    'chat.placeholder': 'Type a message...',
+    'chat.send': 'Send',
+    'chat.empty': 'Chat is empty',
+    'chat.emptyDesc': 'Be the first to write a message!',
+    'chat.messageCount': 'messages',
+    'chat.enterToSend': 'Enter - send, Shift+Enter - new line',
   }
 };
 
