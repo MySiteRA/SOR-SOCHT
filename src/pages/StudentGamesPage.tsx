@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, MoreVertical, LogOut, Trash2, User as UserIcon, Calendar, MessageCircle, Gamepad2, Users, Play, Plus } from 'lucide-react';
+import { ArrowLeft, MoreVertical, LogOut, Trash2, User as UserIcon, Calendar, MessageCircle, Gamepad2, Users, Play, Plus, Crown, Clock } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -10,7 +10,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
-import { getActiveGames, createGame } from '../services/gameService';
+import { 
+  createGame, 
+  subscribeToActiveGames, 
+  getGameTypeName, 
+  getGameTypeIcon, 
+  getGameTypeColor,
+  getPlayerNumber,
+  type FirebaseGame 
+} from '../services/firebaseGameService';
 import type { Student, Game } from '../lib/supabase';
 
 const gameTypes = [
@@ -47,7 +55,7 @@ export default function StudentGamesPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [studentData, setStudentData] = useState<{student: Student, className: string} | null>(null);
-  const [activeGames, setActiveGames] = useState<Game[]>([]);
+  const [activeGames, setActiveGames] = useState<FirebaseGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creatingGame, setCreatingGame] = useState<string | null>(null);
@@ -57,23 +65,25 @@ export default function StudentGamesPage() {
     if (saved) {
       const data = JSON.parse(saved);
       setStudentData(data);
-      loadActiveGames(data.student.class_id);
+      setupGameSubscription(data.student.class_id);
     } else {
       navigate('/', { replace: true });
     }
   }, []);
 
-  const loadActiveGames = async (classId: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const games = await getActiveGames(classId);
+  const setupGameSubscription = (classId: string) => {
+    setLoading(true);
+    setError(null);
+    
+    const unsubscribe = subscribeToActiveGames(classId, (games) => {
       setActiveGames(games);
-    } catch (err) {
-      setError('Ошибка загрузки игр');
-    } finally {
       setLoading(false);
-    }
+    });
+
+    // Очищаем подписку при размонтировании компонента
+    return () => {
+      unsubscribe();
+    };
   };
 
   const handleCreateGame = async (gameType: 'truth_or_dare' | 'quiz' | 'mafia') => {
@@ -83,19 +93,19 @@ export default function StudentGamesPage() {
       setCreatingGame(gameType);
       setError(null);
 
-      const game = await createGame(
+      const gameId = await createGame(
         studentData.student.class_id,
-        gameType,
         studentData.student.id,
-        10
+        studentData.student.name,
+        gameType,
+        gameType === 'mafia' ? 8 : 6 // Мафия требует больше игроков
       );
 
       // Перенаправляем на страницу игры
-      navigate(`/student-game/${game.id}`, {
+      navigate(`/student-game/${gameId}`, {
         state: {
           student: studentData.student,
-          className: studentData.className,
-          game
+          className: studentData.className
         }
       });
     } catch (err) {
@@ -105,14 +115,13 @@ export default function StudentGamesPage() {
     }
   };
 
-  const handleJoinGame = (game: Game) => {
+  const handleJoinGame = (game: FirebaseGame) => {
     if (!studentData) return;
 
     navigate(`/student-game/${game.id}`, {
       state: {
         student: studentData.student,
-        className: studentData.className,
-        game
+        className: studentData.className
       }
     });
   };
@@ -142,9 +151,32 @@ export default function StudentGamesPage() {
     navigate('/student-chat');
   };
 
-  const getGameTypeName = (gameType: string) => {
-    const game = gameTypes.find(g => g.type === gameType);
-    return game?.name || gameType;
+  const getPlayerCount = (game: FirebaseGame): number => {
+    return game.players ? Object.keys(game.players).length : 0;
+  };
+
+  const isPlayerInGame = (game: FirebaseGame): boolean => {
+    return game.players && studentData ? 
+      Object.keys(game.players).includes(studentData.student.id) : false;
+  };
+
+  const isGameCreator = (game: FirebaseGame): boolean => {
+    return studentData ? game.creatorId === studentData.student.id : false;
+  };
+
+  const formatTimeAgo = (timestamp: number): string => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    
+    if (minutes < 1) return 'только что';
+    if (minutes < 60) return `${minutes} мин. назад`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} ч. назад`;
+    
+    const days = Math.floor(hours / 24);
+    return `${days} дн. назад`;
   };
 
   if (!studentData) {
@@ -263,7 +295,11 @@ export default function StudentGamesPage() {
             <h2 className="text-xl font-bold text-gray-900 mb-4">Активные игры</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {activeGames.map((game, index) => {
-                const gameInfo = gameTypes.find(g => g.type === game.game_type);
+                const playerCount = getPlayerCount(game);
+                const isInGame = isPlayerInGame(game);
+                const isCreator = isGameCreator(game);
+                const currentPlayerNumber = isInGame ? getPlayerNumber(game.players || {}, studentData.student.id) : 0;
+                
                 return (
                   <motion.div
                     key={game.id}
@@ -275,25 +311,71 @@ export default function StudentGamesPage() {
                     onClick={() => handleJoinGame(game)}
                     className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-6"
                   >
-                    <div className="flex items-center space-x-4">
-                      <div className={`w-12 h-12 ${gameInfo?.bgColor} rounded-xl flex items-center justify-center text-2xl`}>
-                        {gameInfo?.icon}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-12 h-12 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-xl flex items-center justify-center text-2xl">
+                            {getGameTypeIcon(game.gameType)}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {getGameTypeName(game.gameType)}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              {isCreator && <Crown className="w-3 h-3 inline mr-1 text-yellow-500" />}
+                              {game.status === 'waiting' 
+                                ? 'Набор игроков' 
+                                : isInGame 
+                                  ? `В процессе • Вы: Игрок ${currentPlayerNumber}`
+                                  : 'В процессе'
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="text-right">
+                          <div className="flex items-center space-x-1 text-sm text-gray-600 mb-1">
+                            <Users className="w-4 h-4" />
+                            <span>{playerCount}/{game.maxPlayers}</span>
+                          </div>
+                          <div className="flex items-center space-x-1 text-xs text-gray-500">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatTimeAgo(game.createdAt || 0)}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {getGameTypeName(game.game_type)}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          Статус: {game.status === 'waiting' ? 'Ожидание игроков' : 'В процессе'}
-                        </p>
-                      </div>
-                      <div className="text-right">
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="flex -space-x-2">
+                          {game.players && Object.entries(game.players).slice(0, 4).map(([userId, player], idx) => (
+                            <div
+                              key={userId}
+                              className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center border-2 border-white text-white text-xs font-bold"
+                              style={{ zIndex: 4 - idx }}
+                            >
+                              {player.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                            </div>
+                          ))}
+                          {playerCount > 4 && (
+                            <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center border-2 border-white text-white text-xs font-bold">
+                              +{playerCount - 4}
+                            </div>
+                          )}
+                        </div>
+                        
                         <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          game.status === 'waiting' 
-                            ? 'bg-yellow-100 text-yellow-800' 
-                            : 'bg-green-100 text-green-800'
+                          isInGame
+                            ? 'bg-green-100 text-green-800'
+                            : game.status === 'waiting' 
+                              ? 'bg-yellow-100 text-yellow-800' 
+                              : 'bg-blue-100 text-blue-800'
                         }`}>
-                          {game.status === 'waiting' ? 'Присоединиться' : 'Играть'}
+                          {isInGame 
+                            ? `Игрок ${currentPlayerNumber}` 
+                            : game.status === 'waiting' 
+                              ? 'Присоединиться' 
+                              : 'Играть'
+                          }
                         </span>
                       </div>
                     </div>
@@ -332,6 +414,9 @@ export default function StudentGamesPage() {
                     <p className="text-gray-600 text-sm">
                       {gameType.description}
                     </p>
+                    <div className="text-xs text-gray-500 mt-2">
+                      Макс. игроков: {gameType.type === 'mafia' ? '8' : '6'}
+                    </div>
                   </div>
 
                   <motion.button
@@ -368,17 +453,21 @@ export default function StudentGamesPage() {
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Правила игр</h3>
           <div className="space-y-4 text-sm text-gray-600">
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+              <h4 className="font-medium text-blue-900 mb-2">🎭 Анонимность в играх</h4>
+              <p className="text-blue-800">При старте игры всем участникам назначаются случайные номера (Игрок 1, Игрок 2, и т.д.). Это обеспечивает анонимность и делает игры более честными и интересными.</p>
+            </div>
             <div>
               <h4 className="font-medium text-gray-900 mb-2">🎭 Правда или Действие</h4>
-              <p>Игроки по очереди задают друг другу вопросы или дают задания. Выберите "Правда" для вопроса или "Действие" для задания.</p>
+              <p>Случайно выбранные игроки задают друг другу вопросы или дают задания. Выберите "Правда" для вопроса или "Действие" для задания. Все действия видны в реальном времени.</p>
             </div>
             <div>
               <h4 className="font-medium text-gray-900 mb-2">🎲 Викторина</h4>
-              <p>Отвечайте на вопросы быстрее других! За каждый правильный ответ начисляются баллы. Побеждает игрок с наибольшим количеством баллов.</p>
+              <p>Отвечайте на вопросы быстрее других! За каждый правильный ответ начисляются баллы. Все ответы видны в реальном времени. Побеждает игрок с наибольшим количеством баллов. Игроки видят только номера друг друга.</p>
             </div>
             <div>
               <h4 className="font-medium text-gray-900 mb-2">🕵️ Мафия</h4>
-              <p>Психологическая игра. Мафия пытается устранить мирных жителей, а мирные жители пытаются найти мафию. Есть специальные роли: врач и детектив.</p>
+              <p>Психологическая игра в реальном времени с анонимными номерами. Мафия пытается устранить мирных жителей, а мирные жители пытаются найти мафию. Есть специальные роли: врач и детектив. Все голоса и действия синхронизируются онлайн.</p>
             </div>
           </div>
         </motion.div>
