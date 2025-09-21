@@ -64,7 +64,22 @@ class AvatarPreloader {
         data[studentId] = avatar;
       });
 
-      localStorage.setItem(AVATAR_CACHE_KEY, JSON.stringify(data));
+      try {
+        localStorage.setItem(AVATAR_CACHE_KEY, JSON.stringify(data));
+      } catch (quotaError) {
+        if (quotaError instanceof DOMException && quotaError.name === 'QuotaExceededError') {
+          // Очищаем кэш и пытаемся сохранить снова
+          this.clearCache();
+          try {
+            localStorage.setItem(AVATAR_CACHE_KEY, JSON.stringify(data));
+          } catch (retryError) {
+            console.error('Error saving avatar cache after clearing:', retryError);
+            throw retryError;
+          }
+        } else {
+          throw quotaError;
+        }
+      }
     } catch (error) {
       console.error('Error saving avatar cache:', error);
       // В случае ошибки очищаем кэш

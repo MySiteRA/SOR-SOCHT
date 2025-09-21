@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Moon, Sun, Users, Eye, Heart, Shield, Skull, Vote, Clock, Crown, EyeOff } from 'lucide-react';
+import { Moon, Sun, Users, Eye, Heart, Shield, Skull, Vote, Clock, Crown, EyeOff, Settings, Plus, Minus, AlertTriangle } from 'lucide-react';
 import { 
   subscribeToGameMoves,
   addGameMove,
   submitMafiaVote,
+  updateGameSettings,
+  validateGameSettings,
   getPlayerByNumber,
   getPlayerNumber,
   type FirebaseGame,
@@ -15,6 +17,11 @@ import type { Student } from '../../lib/supabase';
 
 type GamePhase = 'night' | 'day' | 'voting' | 'results';
 
+interface GameSettings {
+  mafia: number;
+  doctor: number;
+  detective: number;
+}
 interface FirebaseMafiaGameProps {
   game: FirebaseGame;
   players: { [userId: string]: FirebasePlayer };
@@ -38,6 +45,13 @@ export default function FirebaseMafiaGame({
   const [hasVoted, setHasVoted] = useState(false);
   const [phaseTimeLeft, setPhaseTimeLeft] = useState(0);
   const [showPlayerNumbers, setShowPlayerNumbers] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [gameSettings, setGameSettings] = useState<GameSettings>({
+    mafia: 1,
+    doctor: 1,
+    detective: 1
+  });
+  const [settingsLoading, setSettingsLoading] = useState(false);
 
   const currentPlayerNumber = getPlayerNumber(players, currentPlayer.id);
   const currentPlayerData = players[currentPlayer.id];
@@ -50,7 +64,16 @@ export default function FirebaseMafiaGame({
   const alivePlayers = playersArray.filter(p => p.isAlive !== false);
   const mafiaPlayers = playersArray.filter(p => p.role === 'mafia' && p.isAlive !== false);
   const civilianPlayers = playersArray.filter(p => p.role !== 'mafia' && p.isAlive !== false);
+  
+  const isGameCreator = game.creatorId === currentPlayer.id;
+  const playerCount = Object.keys(players).length;
 
+  // Загружаем настройки игры при инициализации
+  useEffect(() => {
+    if (game.settings) {
+      setGameSettings(game.settings);
+    }
+  }, [game.settings]);
   useEffect(() => {
     // Подписываемся на ходы игры
     const unsubscribe = subscribeToGameMoves(gameId, (move) => {
@@ -87,6 +110,34 @@ export default function FirebaseMafiaGame({
     }
   }, [phaseTimeLeft]);
 
+  const handleSettingsUpdate = async () => {
+    try {
+      setSettingsLoading(true);
+      
+      const validation = validateGameSettings(playerCount, gameSettings);
+      if (!validation.valid) {
+        onError(validation.error || 'Неверные настройки');
+        return;
+      }
+      
+      await updateGameSettings(gameId, gameSettings);
+      setShowSettings(false);
+      
+      // Добавляем системное сообщение об изменении настроек
+      await addGameMove(
+        gameId,
+        currentPlayer.id,
+        currentPlayer.name,
+        currentPlayerNumber,
+        'system',
+        `Настройки обновлены: Мафий: ${gameSettings.mafia}, Врачей: ${gameSettings.doctor}, Детективов: ${gameSettings.detective}`
+      );
+    } catch (err) {
+      onError('Ошибка обновления настроек');
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
   const handleVote = async (targetNumber: number) => {
     if (hasVoted || !canVote()) return;
 
@@ -209,6 +260,211 @@ export default function FirebaseMafiaGame({
     return `Игрок ${playerNumber}`;
   };
 
+  // Если игра еще не началась и мы создатель
+  if (game.status === 'waiting' && isGameCreator) {
+    const validation = validateGameSettings(playerCount, gameSettings);
+    
+    return (
+      <div className="space-y-6">
+        {/* Game Settings */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+              <Settings className="w-5 h-5 text-indigo-600" />
+              <span>Настройки игры</span>
+            </h3>
+            
+            <div className="text-sm text-gray-600">
+              Игроков: {playerCount}/{game.maxPlayers}
+            </div>
+          </div>
+          
+          <div className="space-y-6">
+            {/* Role Settings */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Mafia */}
+              <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Skull className="w-5 h-5 text-red-600" />
+                  <h4 className="font-semibold text-red-900">Мафия</h4>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => setGameSettings(prev => ({ ...prev, mafia: Math.max(1, prev.mafia - 1) }))}
+                    disabled={gameSettings.mafia <= 1}
+                    className="w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="text-2xl font-bold text-red-900 w-8 text-center">
+                    {gameSettings.mafia}
+                  </span>
+                  <button
+                    onClick={() => setGameSettings(prev => ({ ...prev, mafia: Math.min(3, prev.mafia + 1) }))}
+                    disabled={gameSettings.mafia >= 3}
+                    className="w-8 h-8 bg-red-600 text-white rounded-full flex items-center justify-center hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-xs text-red-700 mt-2">1-3 мафии</p>
+              </div>
+              
+              {/* Doctor */}
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Heart className="w-5 h-5 text-green-600" />
+                  <h4 className="font-semibold text-green-900">Врач</h4>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => setGameSettings(prev => ({ ...prev, doctor: Math.max(0, prev.doctor - 1) }))}
+                    disabled={gameSettings.doctor <= 0}
+                    className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="text-2xl font-bold text-green-900 w-8 text-center">
+                    {gameSettings.doctor}
+                  </span>
+                  <button
+                    onClick={() => setGameSettings(prev => ({ ...prev, doctor: Math.min(1, prev.doctor + 1) }))}
+                    disabled={gameSettings.doctor >= 1}
+                    className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-xs text-green-700 mt-2">0-1 врач</p>
+              </div>
+              
+              {/* Detective */}
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Eye className="w-5 h-5 text-blue-600" />
+                  <h4 className="font-semibold text-blue-900">Детектив</h4>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => setGameSettings(prev => ({ ...prev, detective: Math.max(0, prev.detective - 1) }))}
+                    disabled={gameSettings.detective <= 0}
+                    className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="text-2xl font-bold text-blue-900 w-8 text-center">
+                    {gameSettings.detective}
+                  </span>
+                  <button
+                    onClick={() => setGameSettings(prev => ({ ...prev, detective: Math.min(2, prev.detective + 1) }))}
+                    disabled={gameSettings.detective >= 2}
+                    className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-xs text-blue-700 mt-2">0-2 детектива</p>
+              </div>
+            </div>
+            
+            {/* Settings Summary */}
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <h4 className="font-semibold text-gray-900 mb-3">Итого ролей:</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="text-center">
+                  <div className="text-red-600 font-bold text-lg">{gameSettings.mafia}</div>
+                  <div className="text-gray-600">Мафия</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-green-600 font-bold text-lg">{gameSettings.doctor}</div>
+                  <div className="text-gray-600">Врач</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-blue-600 font-bold text-lg">{gameSettings.detective}</div>
+                  <div className="text-gray-600">Детектив</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-gray-600 font-bold text-lg">
+                    {Math.max(0, playerCount - gameSettings.mafia - gameSettings.doctor - gameSettings.detective)}
+                  </div>
+                  <div className="text-gray-600">Мирные</div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Validation Message */}
+            {!validation.valid && (
+              <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                  <span className="text-red-800 font-medium">{validation.error}</span>
+                </div>
+              </div>
+            )}
+            
+            {validation.valid && (
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <div className="flex items-center space-x-2">
+                  <Shield className="w-5 h-5 text-green-600" />
+                  <span className="text-green-800 font-medium">
+                    Настройки корректны! Можно начинать игру.
+                  </span>
+                </div>
+              </div>
+            )}
+            
+            {/* Save Settings Button */}
+            <div className="flex space-x-3">
+              <button
+                onClick={handleSettingsUpdate}
+                disabled={settingsLoading || !validation.valid}
+                className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              >
+                {settingsLoading ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Сохранение...</span>
+                  </div>
+                ) : (
+                  'Сохранить настройки'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Players List */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+            <Users className="w-5 h-5 text-indigo-600" />
+            <span>Игроки в комнате ({playerCount}/{game.maxPlayers})</span>
+          </h3>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {playersArray.map((player, index) => (
+              <div
+                key={player.userId}
+                className="p-4 rounded-lg border border-gray-200 bg-gray-50 text-center"
+              >
+                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-2 text-white font-bold">
+                  {player.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                </div>
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {player.name}
+                </p>
+                {player.userId === game.creatorId && (
+                  <Crown className="w-4 h-4 text-yellow-500 mx-auto mt-1" />
+                )}
+                <div className="text-xs text-gray-500 mt-1">
+                  Получит роль при старте
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="space-y-6">
       {/* Game Status */}

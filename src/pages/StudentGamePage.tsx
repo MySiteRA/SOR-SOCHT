@@ -129,15 +129,9 @@ export default function StudentGamePage() {
       setActionLoading('start');
       setError(null);
       
-      // Для мафии назначаем роли перед началом
-      if (game.gameType === 'mafia') {
-        const playerIds = Object.keys(players);
-        await assignMafiaRoles(gameId, playerIds);
-      }
-      
       await startGame(gameId);
     } catch (err) {
-      setError('Ошибка запуска игры');
+      setError(err instanceof Error ? err.message : 'Ошибка запуска игры');
     } finally {
       setActionLoading(null);
     }

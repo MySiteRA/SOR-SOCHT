@@ -103,7 +103,11 @@ export interface Game {
   created_by: string;
   max_players: number;
   current_round: number;
-  settings: any;
+  settings: {
+    mafia?: number;
+    doctor?: number;
+    detective?: number;
+  };
   created_at: string;
   started_at?: string;
   finished_at?: string;

@@ -9,6 +9,11 @@ export interface FirebaseGame {
   maxPlayers: number;
   status: 'waiting' | 'active' | 'finished' | 'cancelled';
   createdAt: number;
+  settings?: {
+    mafia?: number;
+    doctor?: number;
+    detective?: number;
+  };
   players?: { [userId: string]: FirebasePlayer };
   currentTurn?: {
     asker?: number;
@@ -53,6 +58,13 @@ export function createGame(
     const gamesRef = ref(db, 'games');
     const newGameRef = push(gamesRef);
     
+    // Настройки по умолчанию для мафии
+    const defaultSettings = gameType === 'mafia' ? {
+      mafia: 1,
+      doctor: 1,
+      detective: 1
+    } : {};
+    
     const gameData: FirebaseGame = {
       classId,
       creatorId,
@@ -60,6 +72,7 @@ export function createGame(
       maxPlayers,
       status: 'waiting',
       createdAt: Date.now(),
+      settings: defaultSettings,
       players: {
         [creatorId]: {
           name: creatorName,
@@ -106,6 +119,65 @@ export function leaveGame(gameId: string, userId: string): Promise<void> {
   });
 }
 
+// ==================== Настройки игры ====================
+
+export function updateGameSettings(
+  gameId: string,
+  settings: { mafia: number; doctor: number; detective: number }
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const gameRef = ref(db, `games/${gameId}/settings`);
+    
+    set(gameRef, settings)
+      .then(() => resolve())
+      .catch(reject);
+  });
+}
+
+export function validateGameSettings(
+  playerCount: number,
+  settings: { mafia: number; doctor: number; detective: number }
+): { valid: boolean; error?: string } {
+  const totalSpecialRoles = settings.mafia + settings.doctor + settings.detective;
+  
+  if (totalSpecialRoles >= playerCount) {
+    return {
+      valid: false,
+      error: `Недостаточно игроков для выбранных ролей. Нужно минимум ${totalSpecialRoles + 1} игроков.`
+    };
+  }
+  
+  if (settings.mafia < 1) {
+    return {
+      valid: false,
+      error: 'Должна быть минимум 1 мафия'
+    };
+  }
+  
+  if (settings.mafia > 3) {
+    return {
+      valid: false,
+      error: 'Максимум 3 мафии'
+    };
+  }
+  
+  if (settings.doctor > 1) {
+    return {
+      valid: false,
+      error: 'Максимум 1 врач'
+    };
+  }
+  
+  if (settings.detective > 2) {
+    return {
+      valid: false,
+      error: 'Максимум 2 детектива'
+    };
+  }
+  
+  return { valid: true };
+}
+
 export function startGame(gameId: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const gameRef = ref(db, `games/${gameId}`);
@@ -118,8 +190,51 @@ export function startGame(gameId: string): Promise<void> {
         return;
       }
 
-      // Перемешиваем игроков и назначаем номера
       const playerIds = Object.keys(game.players);
+      const playerCount = playerIds.length;
+      
+      // Для мафии проверяем настройки
+      if (game.gameType === 'mafia') {
+        const settings = game.settings || { mafia: 1, doctor: 1, detective: 1 };
+        const validation = validateGameSettings(playerCount, settings);
+        
+        if (!validation.valid) {
+          reject(new Error(validation.error));
+          return;
+        }
+        
+        // Распределяем роли для мафии
+        const roles = assignMafiaRolesArray(playerIds, settings);
+        const updates: { [key: string]: any } = {};
+        
+        // Назначаем роли и номера игрокам
+        playerIds.forEach((playerId, index) => {
+          updates[`players/${playerId}/number`] = index + 1;
+          updates[`players/${playerId}/role`] = roles[playerId];
+        });
+        
+        // Обновляем статус игры
+        updates.status = 'active';
+        updates.startedAt = Date.now();
+        
+        update(gameRef, updates)
+          .then(() => {
+            addGameMove(
+              gameId, 
+              'system', 
+              'Система', 
+              0,
+              'system', 
+              `Игра началась! Роли распределены. Мафий: ${settings.mafia}, Врачей: ${settings.doctor}, Детективов: ${settings.detective}`
+            );
+            resolve();
+          })
+          .catch(reject);
+        
+        return;
+      }
+
+      // Перемешиваем игроков и назначаем номера
       const shuffledIds = playerIds.sort(() => Math.random() - 0.5);
       
       const updates: { [key: string]: any } = {};
@@ -385,29 +500,72 @@ export function submitMafiaVote(
   ).then(() => {});
 }
 
-export function assignMafiaRoles(gameId: string, playerIds: string[]): Promise<void> {
+// Вспомогательная функция для распределения ролей мафии
+function assignMafiaRolesArray(
+  playerIds: string[], 
+  settings: { mafia: number; doctor: number; detective: number }
+): { [userId: string]: string } {
+  const shuffled = [...playerIds].sort(() => Math.random() - 0.5);
+  const roles: { [userId: string]: string } = {};
+  
+  let index = 0;
+  
+  // Назначаем мафию
+  for (let i = 0; i < settings.mafia; i++) {
+    roles[shuffled[index]] = 'mafia';
+    index++;
+  }
+  
+  // Назначаем врачей
+  for (let i = 0; i < settings.doctor; i++) {
+    roles[shuffled[index]] = 'doctor';
+    index++;
+  }
+  
+  // Назначаем детективов
+  for (let i = 0; i < settings.detective; i++) {
+    roles[shuffled[index]] = 'detective';
+    index++;
+  }
+  
+  // Остальные - мирные жители
+  for (let i = index; i < shuffled.length; i++) {
+    roles[shuffled[i]] = 'civilian';
+  }
+  
+  return roles;
+}
+
+export function assignMafiaRoles(gameId: string, playerIds: string[], settings?: { mafia: number; doctor: number; detective: number }): Promise<void> {
   return new Promise((resolve, reject) => {
-    const shuffled = [...playerIds].sort(() => Math.random() - 0.5);
-    const mafiaCount = Math.max(1, Math.floor(playerIds.length / 4));
+    const gameSettings = settings || { mafia: 1, doctor: 1, detective: 1 };
+    const validation = validateGameSettings(playerIds.length, gameSettings);
     
-    const roles = [
-      ...Array(mafiaCount).fill('mafia'),
-      'doctor',
-      'detective',
-      ...Array(playerIds.length - mafiaCount - 2).fill('civilian')
-    ];
+    if (!validation.valid) {
+      reject(new Error(validation.error));
+      return;
+    }
+    
+    const roles = assignMafiaRolesArray(playerIds, gameSettings);
 
     const updates: { [key: string]: any } = {};
     
-    shuffled.forEach((playerId, index) => {
-      const role = roles[index] || 'civilian';
-      updates[`games/${gameId}/players/${playerId}/role`] = role;
+    playerIds.forEach((playerId) => {
+      updates[`players/${playerId}/role`] = roles[playerId];
     });
 
-    update(ref(db), updates)
+    const gameRef = ref(db, `games/${gameId}`);
+    update(gameRef, updates)
       .then(() => {
         // Добавляем системное сообщение
-        addGameMove(gameId, 'system', 'Система', 0, 'system', 'Роли распределены! Игра начинается...');
+        addGameMove(
+          gameId, 
+          'system', 
+          'Система', 
+          0, 
+          'system', 
+          `Роли распределены! Мафий: ${gameSettings.mafia}, Врачей: ${gameSettings.doctor}, Детективов: ${gameSettings.detective}`
+        );
         resolve();
       })
       .catch(reject);
