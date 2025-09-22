@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, FileText, MoreVertical, LogOut, Trash2, User as UserIcon, Calendar, MessageCircle, Gamepad2 } from 'lucide-react';
+import { BookOpen, FileText, MoreVertical, LogOut, Trash2, User as UserIcon, Calendar, MessageCircle, Gamepad2, Timer, Clock } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import StudentAvatar from '../components/StudentAvatar';
 import { usePreloadedData } from '../hooks/usePreloadedData';
+import { useRealtimeLessonTimer } from '../hooks/useRealtimeLessonTimer';
+import { supabase } from '../lib/supabase';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,18 +19,43 @@ export default function StudentDashboardPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [studentData, setStudentData] = useState<{student: Student, className: string} | null>(null);
+  const [schedule, setSchedule] = useState<any[]>([]);
   
   // Используем предзагруженные данные
   const { data: preloadedData } = usePreloadedData();
 
+  // Используем хук для реального времени урока
+  const currentLesson = useRealtimeLessonTimer({
+    classId: studentData?.student.class_id || '',
+    schedule
+  });
+
   useEffect(() => {
     const saved = localStorage.getItem('studentDashboardData');
     if (saved) {
-      setStudentData(JSON.parse(saved));
+      const data = JSON.parse(saved);
+      setStudentData(data);
+      loadSchedule(data.student.class_id);
     } else {
       navigate('/', { replace: true });
     }
   }, [navigate]);
+
+  const loadSchedule = async (classId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('schedule')
+        .select('*')
+        .eq('class_id', classId)
+        .order('day_of_week')
+        .order('lesson_number');
+
+      if (error) throw error;
+      setSchedule(data || []);
+    } catch (err) {
+      console.error('Error loading schedule:', err);
+    }
+  };
 
   const handleLogout = () => {
     // НЕ удаляем данные сеанса при обычном выходе
@@ -197,42 +224,126 @@ export default function StudentDashboardPage() {
         )}
 
         {/* Main Dashboard */}
-        <motion.div
-          initial={{ opacity: 0, x: 100 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto"
-        >
-          <motion.div
-            whileHover={{ scale: 1.02, y: -5 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('/student-sor')}
-            className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
-          >
-            <div className="text-center">
-              <div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <BookOpen className="w-10 h-10 text-green-600" />
-              </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('dashboard.sor')}</h2>
-              <p className="text-gray-600">{t('dashboard.sorDesc')}</p>
-            </div>
-          </motion.div>
+        <div className="space-y-8">
+          {/* Current Lesson Widget */}
+          {schedule.length > 0 && (currentLesson.current || currentLesson.isBreak) && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 max-w-4xl mx-auto"
+            >
+              {currentLesson.current ? (
+                <div className="text-center">
+                  <div className="flex items-center justify-center space-x-2 mb-4">
+                    <Timer className="w-6 h-6 text-indigo-600" />
+                    <h3 className="text-xl font-bold text-gray-900">Идет урок</h3>
+                  </div>
+                  
+                  <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200 mb-4">
+                    <h4 className="text-lg font-semibold text-indigo-900 mb-2">
+                      {currentLesson.current.subject}
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-indigo-800 mb-4">
+                      <div className="flex items-center justify-center space-x-2">
+                        <User className="w-4 h-4" />
+                        <span>{currentLesson.current.teacher}</span>
+                      </div>
+                      <div className="flex items-center justify-center space-x-2">
+                        <MapPin className="w-4 h-4" />
+                        <span>{currentLesson.current.room}</span>
+                      </div>
+                      <div className="flex items-center justify-center space-x-2">
+                        <Clock className="w-4 h-4" />
+                        <span>
+                          {currentLesson.current.start_time.slice(0, 5)} - {currentLesson.current.end_time.slice(0, 5)}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-indigo-600 text-white px-6 py-3 rounded-xl inline-flex items-center space-x-3">
+                      <Timer className="w-5 h-5" />
+                      <div className="text-center">
+                        <div className="font-mono text-2xl font-bold">
+                          {String(currentLesson.timeLeft.hours).padStart(2, '0')}:
+                          {String(currentLesson.timeLeft.minutes).padStart(2, '0')}:
+                          {String(currentLesson.timeLeft.seconds).padStart(2, '0')}
+                        </div>
+                        <div className="text-xs text-indigo-200 mt-1">до окончания урока</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : currentLesson.isBreak && currentLesson.next ? (
+                <div className="text-center">
+                  <div className="flex items-center justify-center space-x-2 mb-4">
+                    <Clock className="w-6 h-6 text-blue-600" />
+                    <h3 className="text-xl font-bold text-gray-900">Перемена</h3>
+                  </div>
+                  
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <h4 className="text-md font-semibold text-gray-900 mb-2">Следующий урок:</h4>
+                    <div className="flex items-center justify-center space-x-4 mb-3">
+                      <span className="text-blue-800 font-medium">{currentLesson.next.subject}</span>
+                      <span className="text-sm text-blue-600">
+                        {currentLesson.next.start_time.slice(0, 5)} - {currentLesson.next.end_time.slice(0, 5)}
+                      </span>
+                    </div>
+                    
+                    <div className="bg-blue-600 text-white px-6 py-3 rounded-xl inline-flex items-center space-x-3">
+                      <Timer className="w-5 h-5" />
+                      <div className="text-center">
+                        <div className="font-mono text-2xl font-bold">
+                          {String(currentLesson.timeUntilNext.hours).padStart(2, '0')}:
+                          {String(currentLesson.timeUntilNext.minutes).padStart(2, '0')}:
+                          {String(currentLesson.timeUntilNext.seconds).padStart(2, '0')}
+                        </div>
+                        <div className="text-xs text-blue-200 mt-1">до начала урока</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </motion.div>
+          )}
 
+          {/* Main Dashboard Cards */}
           <motion.div
-            whileHover={{ scale: 1.02, y: -5 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('/student-soch')}
-            className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3 }}
+            className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto"
           >
-            <div className="text-center">
-              <div className="bg-purple-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="w-10 h-10 text-purple-600" />
+            <motion.div
+              whileHover={{ scale: 1.02, y: -5 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/student-sor')}
+              className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
+            >
+              <div className="text-center">
+                <div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <BookOpen className="w-10 h-10 text-green-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('dashboard.sor')}</h2>
+                <p className="text-gray-600">{t('dashboard.sorDesc')}</p>
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('dashboard.soch')}</h2>
-              <p className="text-gray-600">{t('dashboard.sochDesc')}</p>
-            </div>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ scale: 1.02, y: -5 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/student-soch')}
+              className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
+            >
+              <div className="text-center">
+                <div className="bg-purple-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileText className="w-10 h-10 text-purple-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('dashboard.soch')}</h2>
+                <p className="text-gray-600">{t('dashboard.sochDesc')}</p>
+              </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

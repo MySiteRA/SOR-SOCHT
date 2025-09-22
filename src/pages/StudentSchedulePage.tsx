@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Calendar, Clock, MapPin, User, MoreVertical, LogOut, Trash2, User as UserIcon, MessageCircle, CheckCircle, Gamepad2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, User, MoreVertical, LogOut, Trash2, User as UserIcon, MessageCircle, CheckCircle, Gamepad2, Timer } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { supabase } from '../lib/supabase';
 import { getLatestScheduleForClass } from '../lib/api';
+import { useRealtimeLessonTimer } from '../hooks/useRealtimeLessonTimer';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,27 +28,20 @@ interface ScheduleItem {
   created_at: string;
 }
 
-interface CurrentLesson {
-  current: ScheduleItem | null;
-  next: ScheduleItem | null;
-  minutesLeft: number;
-  isFinished: boolean;
-}
-
 export default function StudentSchedulePage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [studentData, setStudentData] = useState<{student: Student, className: string} | null>(null);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [scheduleFileUrl, setScheduleFileUrl] = useState<string | null>(null);
-  const [currentLesson, setCurrentLesson] = useState<CurrentLesson>({
-    current: null,
-    next: null,
-    minutesLeft: 0,
-    isFinished: false
-  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Используем хук для реального времени урока
+  const currentLesson = useRealtimeLessonTimer({
+    classId: studentData?.student.class_id || '',
+    schedule
+  });
 
   const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
 
@@ -61,14 +55,6 @@ export default function StudentSchedulePage() {
       navigate('/', { replace: true });
     }
   }, []);
-
-  useEffect(() => {
-    if (schedule.length > 0) {
-      updateCurrentLesson();
-      const interval = setInterval(updateCurrentLesson, 60000); // Обновляем каждую минуту
-      return () => clearInterval(interval);
-    }
-  }, [schedule]);
 
   const loadSchedule = async (classId: string) => {
     try {
@@ -99,65 +85,6 @@ export default function StudentSchedulePage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const updateCurrentLesson = () => {
-    const now = new Date();
-    const currentDay = now.getDay(); // 0 = воскресенье, 1 = понедельник, ...
-    const currentTime = now.getHours() * 60 + now.getMinutes(); // минуты с начала дня
-
-    // Преобразуем день недели в название
-    const dayNames = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
-    const todayName = dayNames[currentDay];
-
-    // Получаем расписание на сегодня
-    const todaySchedule = schedule
-      .filter(item => item.day_of_week === todayName)
-      .sort((a, b) => a.lesson_number - b.lesson_number);
-
-    if (todaySchedule.length === 0) {
-      setCurrentLesson({
-        current: null,
-        next: null,
-        minutesLeft: 0,
-        isFinished: true
-      });
-      return;
-    }
-
-    // Находим текущий и следующий урок
-    let current: ScheduleItem | null = null;
-    let next: ScheduleItem | null = null;
-    let minutesLeft = 0;
-    let isFinished = false;
-
-    for (let i = 0; i < todaySchedule.length; i++) {
-      const lesson = todaySchedule[i];
-      const [startHour, startMinute] = lesson.start_time.split(':').map(Number);
-      const [endHour, endMinute] = lesson.end_time.split(':').map(Number);
-      
-      const startTime = startHour * 60 + startMinute;
-      const endTime = endHour * 60 + endMinute;
-
-      if (currentTime >= startTime && currentTime <= endTime) {
-        // Текущий урок
-        current = lesson;
-        minutesLeft = endTime - currentTime;
-        next = todaySchedule[i + 1] || null;
-        break;
-      } else if (currentTime < startTime) {
-        // Следующий урок
-        next = lesson;
-        break;
-      }
-    }
-
-    // Если прошли все уроки
-    if (!current && !next) {
-      isFinished = true;
-    }
-
-    setCurrentLesson({ current, next, minutesLeft, isFinished });
   };
 
   const getScheduleForDay = (day: string) => {
@@ -314,7 +241,7 @@ export default function StudentSchedulePage() {
             className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 mb-8"
           >
             <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
-              <Clock className="w-5 h-5 text-indigo-600" />
+              <Timer className="w-5 h-5 text-indigo-600" />
               <span>Сейчас</span>
             </h2>
             
@@ -325,6 +252,41 @@ export default function StudentSchedulePage() {
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Занятия закончились</h3>
                 <p className="text-gray-600">Хорошего дня!</p>
+              </div>
+            ) : currentLesson.isBreak ? (
+              <div className="text-center py-6">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-8 h-8 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Перемена</h3>
+                {currentLesson.next && (
+                  <>
+                    <p className="text-gray-600 mb-4">Следующий урок:</p>
+                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-blue-800 font-medium">{currentLesson.next.subject}</span>
+                        <span className="text-sm text-blue-600">
+                          {formatTime(currentLesson.next.start_time)} - {formatTime(currentLesson.next.end_time)}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-4 mb-3 text-sm text-blue-600">
+                        <span>{currentLesson.next.teacher}</span>
+                        <span>{currentLesson.next.room}</span>
+                      </div>
+                      <div className="text-center">
+                        <div className="bg-blue-600 text-white px-4 py-2 rounded-lg inline-flex items-center space-x-2">
+                          <Timer className="w-4 h-4" />
+                          <span className="font-mono text-lg">
+                            {String(currentLesson.timeUntilNext.hours).padStart(2, '0')}:
+                            {String(currentLesson.timeUntilNext.minutes).padStart(2, '0')}:
+                            {String(currentLesson.timeUntilNext.seconds).padStart(2, '0')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-blue-600 mt-2">до начала урока</p>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             ) : currentLesson.current ? (
               <div className="space-y-4">
@@ -353,10 +315,18 @@ export default function StudentSchedulePage() {
                       </span>
                     </div>
                   </div>
-                  <div className="mt-3 text-center">
-                    <span className="text-indigo-700 font-medium">
-                      Осталось: {currentLesson.minutesLeft} мин.
-                    </span>
+                  <div className="mt-4 text-center">
+                    <div className="bg-indigo-600 text-white px-6 py-3 rounded-xl inline-flex items-center space-x-3">
+                      <Timer className="w-5 h-5" />
+                      <div className="text-center">
+                        <div className="font-mono text-2xl font-bold">
+                          {String(currentLesson.timeLeft.hours).padStart(2, '0')}:
+                          {String(currentLesson.timeLeft.minutes).padStart(2, '0')}:
+                          {String(currentLesson.timeLeft.seconds).padStart(2, '0')}
+                        </div>
+                        <div className="text-xs text-indigo-200 mt-1">до окончания урока</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -375,26 +345,6 @@ export default function StudentSchedulePage() {
                     </div>
                   </div>
                 )}
-              </div>
-            ) : currentLesson.next ? (
-              <div className="text-center py-6">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Clock className="w-8 h-8 text-blue-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Перемена</h3>
-                <p className="text-gray-600 mb-4">Следующий урок:</p>
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <span className="text-blue-800 font-medium">{currentLesson.next.subject}</span>
-                    <span className="text-sm text-blue-600">
-                      {formatTime(currentLesson.next.start_time)} - {formatTime(currentLesson.next.end_time)}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-4 mt-2 text-sm text-blue-600">
-                    <span>{currentLesson.next.teacher}</span>
-                    <span>{currentLesson.next.room}</span>
-                  </div>
-                </div>
               </div>
             ) : (
               <div className="text-center py-6">
