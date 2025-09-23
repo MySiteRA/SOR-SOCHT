@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Clock, CheckCircle, XCircle, Users, Play, RotateCcw, Crown, Eye, EyeOff } from 'lucide-react';
+import { Trophy, Clock, CheckCircle, XCircle, Users, Play, RotateCcw, Crown } from 'lucide-react';
 import { 
   subscribeToGameMoves,
   addGameMove,
@@ -21,7 +21,31 @@ interface QuizQuestion {
   timeLimit: number;
 }
 
-const sampleQuestions: QuizQuestion[] = [
+const questionsByDifficulty = {
+  easy: [
+    {
+      id: '1',
+      question: 'Сколько дней в неделе?',
+      options: ['5', '6', '7', '8'],
+      correctAnswer: 2,
+      timeLimit: 20
+    },
+    {
+      id: '2',
+      question: 'Какого цвета солнце?',
+      options: ['Синее', 'Желтое', 'Красное', 'Зеленое'],
+      correctAnswer: 1,
+      timeLimit: 15
+    },
+    {
+      id: '3',
+      question: 'Сколько ног у кота?',
+      options: ['2', '3', '4', '5'],
+      correctAnswer: 2,
+      timeLimit: 15
+    }
+  ],
+  medium: [
   {
     id: '1',
     question: 'Какая планета самая большая в Солнечной системе?',
@@ -57,7 +81,31 @@ const sampleQuestions: QuizQuestion[] = [
     correctAnswer: 1,
     timeLimit: 15
   }
-];
+  ],
+  hard: [
+    {
+      id: '1',
+      question: 'В каком году была открыта структура ДНК?',
+      options: ['1951', '1953', '1955', '1957'],
+      correctAnswer: 1,
+      timeLimit: 10
+    },
+    {
+      id: '2',
+      question: 'Какая самая глубокая точка Мирового океана?',
+      options: ['Марианская впадина', 'Пуэрто-Риканский желоб', 'Японский желоб', 'Филиппинский желоб'],
+      correctAnswer: 0,
+      timeLimit: 12
+    },
+    {
+      id: '3',
+      question: 'Кто сформулировал принцип неопределенности в квантовой механике?',
+      options: ['Эйнштейн', 'Бор', 'Гейзенберг', 'Шредингер'],
+      correctAnswer: 2,
+      timeLimit: 15
+    }
+  ]
+};
 
 interface FirebaseQuizGameProps {
   game: FirebaseGame;
@@ -83,9 +131,10 @@ export default function FirebaseQuizGame({
   const [showResults, setShowResults] = useState(false);
   const [questionAnswers, setQuestionAnswers] = useState<{[playerNumber: number]: {answer: number, isCorrect: boolean, timestamp: number}}>({});
   const [isQuizMaster, setIsQuizMaster] = useState(false);
-  const [showPlayerNumbers, setShowPlayerNumbers] = useState(false);
 
   const currentPlayerNumber = getPlayerNumber(players, currentPlayer.id);
+  const difficulty = game.settings?.difficulty || 'medium';
+  const sampleQuestions = questionsByDifficulty[difficulty];
   const playersArray = Object.entries(players).map(([userId, player]) => ({
     userId,
     ...player
@@ -237,10 +286,6 @@ export default function FirebaseQuizGame({
   };
 
   const getPlayerDisplayName = (playerNumber: number) => {
-    if (showPlayerNumbers) {
-      const playerData = getPlayerByNumber(players, playerNumber);
-      return playerData ? playerData.player.name : `Игрок ${playerNumber}`;
-    }
     return `Игрок ${playerNumber}`;
   };
 
@@ -262,6 +307,11 @@ export default function FirebaseQuizGame({
         </p>
         <p className="text-sm text-gray-500">
           Ваш номер: <span className="font-bold text-indigo-600">Игрок {currentPlayerNumber}</span>
+        </p>
+        <p className="text-sm text-gray-500 mt-2">
+          Уровень сложности: <span className="font-bold text-indigo-600">
+            {difficulty === 'easy' ? 'Легкий' : difficulty === 'medium' ? 'Средний' : 'Сложный'}
+          </span>
         </p>
         {isQuizMaster && (
           <button
@@ -286,16 +336,6 @@ export default function FirebaseQuizGame({
         <div className="text-center mb-8">
           <Trophy className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Викторина завершена!</h2>
-          
-          <div className="flex items-center justify-center space-x-4 mb-6">
-            <button
-              onClick={() => setShowPlayerNumbers(!showPlayerNumbers)}
-              className="flex items-center space-x-2 text-sm text-gray-600 hover:text-indigo-600 bg-gray-100 hover:bg-indigo-50 px-3 py-2 rounded-lg transition-colors"
-            >
-              {showPlayerNumbers ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              <span>{showPlayerNumbers ? 'Скрыть имена' : 'Показать имена'}</span>
-            </button>
-          </div>
         </div>
         
         <div className="space-y-3">
@@ -357,6 +397,12 @@ export default function FirebaseQuizGame({
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-600">
                 Ваш номер: <span className="font-bold text-indigo-600">Игрок {currentPlayerNumber}</span>
+              </div>
+              
+              <div className="text-sm text-gray-600">
+                <span className="font-bold text-purple-600">
+                  {difficulty === 'easy' ? 'Легкий' : difficulty === 'medium' ? 'Средний' : 'Сложный'}
+                </span>
               </div>
               
               <div className="flex items-center space-x-2">
@@ -477,20 +523,10 @@ export default function FirebaseQuizGame({
 
       {/* Leaderboard */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
-            <Trophy className="w-5 h-5 text-yellow-500" />
-            <span>Рейтинг</span>
-          </h3>
-          
-          <button
-            onClick={() => setShowPlayerNumbers(!showPlayerNumbers)}
-            className="flex items-center space-x-2 text-sm text-gray-600 hover:text-indigo-600 bg-gray-100 hover:bg-indigo-50 px-3 py-2 rounded-lg transition-colors"
-          >
-            {showPlayerNumbers ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            <span>{showPlayerNumbers ? 'Скрыть имена' : 'Показать имена'}</span>
-          </button>
-        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+          <Trophy className="w-5 h-5 text-yellow-500" />
+          <span>Рейтинг</span>
+        </h3>
         
         <div className="space-y-2">
           {playersArray

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, MessageCircle, Target, Dice6, Send, Clock, Eye, EyeOff } from 'lucide-react';
+import { Users, MessageCircle, Target, Dice6, Send, Clock } from 'lucide-react';
 import { 
   subscribeToGameMoves,
   subscribeToCurrentTurn,
@@ -35,9 +35,9 @@ export default function FirebaseTruthOrDareGame({
   const [currentTurn, setCurrentTurn] = useState<any>(null);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
-  const [showPlayerNumbers, setShowPlayerNumbers] = useState(false);
 
   const currentPlayerNumber = getPlayerNumber(players, currentPlayer.id);
+  const showPlayerNames = game.settings?.anonymity === false;
   const playersArray = Object.entries(players).map(([userId, player]) => ({
     userId,
     ...player
@@ -97,7 +97,7 @@ export default function FirebaseTruthOrDareGame({
   const isMyTurnToAnswer = currentTurn?.target === currentPlayerNumber && currentTurn?.question && !currentTurn?.answer;
 
   const getPlayerDisplayName = (playerNumber: number) => {
-    if (showPlayerNumbers) {
+    if (showPlayerNames) {
       const playerData = getPlayerByNumber(players, playerNumber);
       return playerData ? playerData.player.name : `Игрок ${playerNumber}`;
     }
@@ -120,13 +120,11 @@ export default function FirebaseTruthOrDareGame({
           </div>
           
           <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setShowPlayerNumbers(!showPlayerNumbers)}
-              className="flex items-center space-x-2 text-sm text-gray-600 hover:text-indigo-600 bg-gray-100 hover:bg-indigo-50 px-3 py-2 rounded-lg transition-colors"
-            >
-              {showPlayerNumbers ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              <span>{showPlayerNumbers ? 'Скрыть имена' : 'Показать имена'}</span>
-            </button>
+            {showPlayerNames && (
+              <div className="text-sm text-gray-600 bg-green-100 px-3 py-1 rounded-lg border border-green-200">
+                <span>Имена игроков видны</span>
+              </div>
+            )}
             
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <Users className="w-4 h-4" />
@@ -319,7 +317,7 @@ export default function FirebaseTruthOrDareGame({
                   {player.number}
                 </div>
                 <p className="text-sm font-medium text-gray-900 truncate">
-                  {showPlayerNumbers ? player.name : `Игрок ${player.number}`}
+                  {showPlayerNames ? player.name : `Игрок ${player.number}`}
                 </p>
                 {isCurrentPlayer && (
                   <div className="text-xs text-indigo-600 font-medium mt-1">Это вы</div>
@@ -411,11 +409,10 @@ export default function FirebaseTruthOrDareGame({
       <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
         <h4 className="font-semibold text-gray-900 mb-3">Правила игры:</h4>
         <div className="space-y-2 text-sm text-gray-700">
-          <p>🎭 <strong>Анонимность:</strong> Все игроки получают случайные номера</p>
+          <p>🎭 <strong>Номера:</strong> Все игроки получают случайные номера{showPlayerNames ? ', но имена видны' : ' для анонимности'}</p>
           <p>🎯 <strong>Ход:</strong> Случайно выбираются спрашивающий и отвечающий</p>
           <p>🤔 <strong>Правда:</strong> Честно ответьте на вопрос</p>
           <p>⚡ <strong>Действие:</strong> Выполните задание и опишите результат</p>
-          <p>👁️ <strong>Имена:</strong> Можно показать/скрыть настоящие имена игроков</p>
         </div>
       </div>
     </div>

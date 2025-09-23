@@ -123,7 +123,7 @@ export function leaveGame(gameId: string, userId: string): Promise<void> {
 
 export function updateGameSettings(
   gameId: string,
-  settings: { mafia: number; doctor: number; detective: number }
+  settings: any
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const gameRef = ref(db, `games/${gameId}/settings`);
