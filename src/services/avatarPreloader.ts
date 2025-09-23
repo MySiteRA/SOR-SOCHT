@@ -11,11 +11,19 @@ interface CachedAvatar {
 // Настройки кэширования аватарок
 const AVATAR_CACHE_KEY = 'avatars_cache';
 const AVATAR_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 часа
-const MAX_CACHE_SIZE = 500; // Максимум аватарок в кэше
+const MAX_AVATAR_ITEMS = 50; // Максимум аватарок в кэше
+const MAX_AVATAR_BYTE_SIZE = 1024 * 1024; // 1MB максимальный размер кэша
 
 class AvatarPreloader {
   private loadingPromises = new Map<string, Promise<string | null>>();
   private isBackgroundLoading = false;
+
+  /**
+   * Вычисляет размер данных в байтах
+   */
+  private getDataSize(data: string): number {
+    return new Blob([data]).size;
+  }
 
   /**
    * Получает кэшированные аватарки
@@ -48,13 +56,13 @@ class AvatarPreloader {
    */
   private setCachedAvatars(avatars: Map<string, CachedAvatar>): void {
     try {
-      // Ограничиваем размер кэша
+      // Ограничиваем количество элементов в кэше
       const avatarsArray = Array.from(avatars.values());
-      if (avatarsArray.length > MAX_CACHE_SIZE) {
+      if (avatarsArray.length > MAX_AVATAR_ITEMS) {
         // Сортируем по времени и оставляем только последние
         avatarsArray.sort((a, b) => b.timestamp - a.timestamp);
         avatars.clear();
-        avatarsArray.slice(0, MAX_CACHE_SIZE).forEach(avatar => {
+        avatarsArray.slice(0, MAX_AVATAR_ITEMS).forEach(avatar => {
           avatars.set(avatar.studentId, avatar);
         });
       }
@@ -64,14 +72,52 @@ class AvatarPreloader {
         data[studentId] = avatar;
       });
 
+      const jsonString = JSON.stringify(data);
+      
+      // Проверяем размер данных перед сохранением
+      if (this.getDataSize(jsonString) > MAX_AVATAR_BYTE_SIZE) {
+        // Удаляем старые элементы пока размер не станет приемлемым
+        const sortedAvatars = avatarsArray.sort((a, b) => b.timestamp - a.timestamp);
+        avatars.clear();
+        
+        let currentSize = 0;
+        for (const avatar of sortedAvatars) {
+          const testData = Object.fromEntries(avatars);
+          testData[avatar.studentId] = avatar;
+          const testSize = this.getDataSize(JSON.stringify(testData));
+          
+          if (testSize > MAX_AVATAR_BYTE_SIZE) {
+            break;
+          }
+          
+          avatars.set(avatar.studentId, avatar);
+          currentSize = testSize;
+        }
+        
+        // Пересоздаем объект данных с уменьшенным набором
+        const reducedData: Record<string, CachedAvatar> = {};
+        avatars.forEach((avatar, studentId) => {
+          reducedData[studentId] = avatar;
+        });
+        
+        try {
+          localStorage.setItem(AVATAR_CACHE_KEY, JSON.stringify(reducedData));
+        } catch (quotaError) {
+          // Если все еще превышаем квоту, очищаем кэш полностью
+          this.clearCache();
+          throw quotaError;
+        }
+        return;
+      }
+
       try {
-        localStorage.setItem(AVATAR_CACHE_KEY, JSON.stringify(data));
+        localStorage.setItem(AVATAR_CACHE_KEY, jsonString);
       } catch (quotaError) {
         if (quotaError instanceof DOMException && quotaError.name === 'QuotaExceededError') {
           // Очищаем кэш и пытаемся сохранить снова
           this.clearCache();
           try {
-            localStorage.setItem(AVATAR_CACHE_KEY, JSON.stringify(data));
+            localStorage.setItem(AVATAR_CACHE_KEY, jsonString);
           } catch (retryError) {
             console.error('Error saving avatar cache after clearing:', retryError);
             throw retryError;

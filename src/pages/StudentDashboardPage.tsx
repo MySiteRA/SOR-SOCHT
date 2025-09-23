@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, FileText, MoreVertical, LogOut, Trash2, User as UserIcon, Calendar, MessageCircle, Gamepad2, Timer, Clock } from 'lucide-react';
+import { BookOpen, FileText, MoreVertical, LogOut, Trash2, User as UserIcon, Calendar, MessageCircle, Gamepad2, Timer, Clock, User, MapPin, ArrowRight } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import StudentAvatar from '../components/StudentAvatar';
@@ -97,6 +97,25 @@ export default function StudentDashboardPage() {
     return studentData.student.name;
   };
 
+  // Функция для получения текущего предмета по расписанию
+  const getCurrentSubjectInfo = () => {
+    if (!currentLesson.current) return null;
+    
+    const subject = currentLesson.current.subject;
+    const timeRange = `${currentLesson.current.start_time.slice(0, 5)} - ${currentLesson.current.end_time.slice(0, 5)}`;
+    
+    return { subject, timeRange };
+  };
+
+  // Функция для получения следующего предмета по расписанию
+  const getNextSubjectInfo = () => {
+    if (!currentLesson.next) return null;
+    
+    const subject = currentLesson.next.subject;
+    const timeRange = `${currentLesson.next.start_time.slice(0, 5)} - ${currentLesson.next.end_time.slice(0, 5)}`;
+    
+    return { subject, timeRange };
+  };
   if (!studentData) {
     return null;
   }
@@ -306,42 +325,96 @@ export default function StudentDashboardPage() {
             </motion.div>
           )}
 
-          {/* Main Dashboard Cards */}
+          {/* Quick Subject Access Buttons */}
           <motion.div
-            initial={{ opacity: 0, x: 100 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3 }}
-            className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="max-w-4xl mx-auto"
           >
-            <motion.div
-              whileHover={{ scale: 1.02, y: -5 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => navigate('/student-sor')}
-              className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
-            >
-              <div className="text-center">
-                <div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <BookOpen className="w-10 h-10 text-green-600" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* СОР Button with Current Subject */}
+              <motion.div
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate('/student-sor')}
+                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="bg-green-100 w-12 h-12 rounded-xl flex items-center justify-center">
+                      <BookOpen className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">{t('dashboard.sor')}</h3>
+                      <p className="text-sm text-gray-600">{t('dashboard.sorDesc')}</p>
+                      {getCurrentSubjectInfo() && (
+                        <div className="mt-2 bg-green-50 px-3 py-1 rounded-lg border border-green-200">
+                          <div className="text-sm font-medium text-green-800">
+                            Сейчас: {getCurrentSubjectInfo()!.subject}
+                          </div>
+                          <div className="text-xs text-green-600">
+                            {getCurrentSubjectInfo()!.timeRange}
+                          </div>
+                        </div>
+                      )}
+                      {!getCurrentSubjectInfo() && getNextSubjectInfo() && (
+                        <div className="mt-2 bg-gray-50 px-3 py-1 rounded-lg border border-gray-200">
+                          <div className="text-sm font-medium text-gray-700">
+                            Следующий: {getNextSubjectInfo()!.subject}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {getNextSubjectInfo()!.timeRange}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-green-600 transition-colors" />
                 </div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('dashboard.sor')}</h2>
-                <p className="text-gray-600">{t('dashboard.sorDesc')}</p>
-              </div>
-            </motion.div>
+              </motion.div>
 
-            <motion.div
-              whileHover={{ scale: 1.02, y: -5 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => navigate('/student-soch')}
-              className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-8"
-            >
-              <div className="text-center">
-                <div className="bg-purple-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FileText className="w-10 h-10 text-purple-600" />
+              {/* СОЧ Button with Current Subject */}
+              <motion.div
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate('/student-soch')}
+                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-100 p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="bg-purple-100 w-12 h-12 rounded-xl flex items-center justify-center">
+                      <FileText className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">{t('dashboard.soch')}</h3>
+                      <p className="text-sm text-gray-600">{t('dashboard.sochDesc')}</p>
+                      {getCurrentSubjectInfo() && (
+                        <div className="mt-2 bg-purple-50 px-3 py-1 rounded-lg border border-purple-200">
+                          <div className="text-sm font-medium text-purple-800">
+                            Сейчас: {getCurrentSubjectInfo()!.subject}
+                          </div>
+                          <div className="text-xs text-purple-600">
+                            {getCurrentSubjectInfo()!.timeRange}
+                          </div>
+                        </div>
+                      )}
+                      {!getCurrentSubjectInfo() && getNextSubjectInfo() && (
+                        <div className="mt-2 bg-gray-50 px-3 py-1 rounded-lg border border-gray-200">
+                          <div className="text-sm font-medium text-gray-700">
+                            Следующий: {getNextSubjectInfo()!.subject}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {getNextSubjectInfo()!.timeRange}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-purple-600 transition-colors" />
                 </div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('dashboard.soch')}</h2>
-                <p className="text-gray-600">{t('dashboard.sochDesc')}</p>
-              </div>
-            </motion.div>
+              </motion.div>
+            </div>
           </motion.div>
         </div>
       </div>
