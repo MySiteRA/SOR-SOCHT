@@ -1,6 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { ref, onValue, set, serverTimestamp } from 'firebase/database';
-import { db } from '../firebase';
 
 interface ScheduleItem {
   id: string;
@@ -49,34 +47,7 @@ export function useRealtimeLessonTimer({ classId, schedule }: UseRealtimeLessonT
     timeUntilNext: { hours: 0, minutes: 0, seconds: 0, totalSeconds: 0 }
   });
   
-  const [serverTime, setServerTime] = useState<number>(Date.now());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Синхронизация времени с Firebase
-  useEffect(() => {
-    const syncTime = () => {
-      const timeRef = ref(db, `server_time/${classId}`);
-      set(timeRef, serverTimestamp()).then(() => {
-        onValue(timeRef, (snapshot) => {
-          const firebaseTime = snapshot.val();
-          if (firebaseTime) {
-            setServerTime(firebaseTime);
-          }
-        }, { onlyOnce: true });
-      });
-    };
-
-    // Синхронизируем время каждые 30 секунд
-    syncTime();
-    syncIntervalRef.current = setInterval(syncTime, 30000);
-
-    return () => {
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
-      }
-    };
-  }, [classId]);
 
   // Функция для преобразования времени в секунды
   const timeToSeconds = (timeString: string): number => {
@@ -95,7 +66,19 @@ export function useRealtimeLessonTimer({ classId, schedule }: UseRealtimeLessonT
 
   // Обновление текущего урока
   const updateCurrentLesson = () => {
-    const now = new Date(serverTime);
+    if (schedule.length === 0) {
+      setCurrentLesson({
+        current: null,
+        next: null,
+        timeLeft: { hours: 0, minutes: 0, seconds: 0, totalSeconds: 0 },
+        isFinished: true,
+        isBreak: false,
+        timeUntilNext: { hours: 0, minutes: 0, seconds: 0, totalSeconds: 0 }
+      });
+      return;
+    }
+
+    const now = new Date();
     const currentDay = now.getDay(); // 0 = воскресенье, 1 = понедельник, ...
     const currentTimeInSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 
@@ -152,7 +135,12 @@ export function useRealtimeLessonTimer({ classId, schedule }: UseRealtimeLessonT
 
     // Если прошли все уроки
     if (!current && !next) {
-      isFinished = true;
+      const lastLesson = todaySchedule[todaySchedule.length - 1];
+      const lastLessonEndTime = timeToSeconds(lastLesson.end_time);
+      
+      if (currentTimeInSeconds > lastLessonEndTime) {
+        isFinished = true;
+      }
     }
 
     setCurrentLesson({ 
@@ -167,63 +155,34 @@ export function useRealtimeLessonTimer({ classId, schedule }: UseRealtimeLessonT
 
   // Запускаем таймер обновления каждую секунду
   useEffect(() => {
-    if (schedule.length > 0) {
-      updateCurrentLesson();
-      
-      intervalRef.current = setInterval(() => {
-        // Обновляем локальное время
-        setServerTime(prev => prev + 1000);
-        updateCurrentLesson();
-      }, 1000);
-
-      return () => {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-        }
-      };
-    }
-  }, [schedule, serverTime]);
-
-  // Отправляем обновления в Firebase для синхронизации между устройствами
-  useEffect(() => {
-    if (currentLesson.current || currentLesson.isBreak) {
-      const lessonStatusRef = ref(db, `lesson_status/${classId}`);
-      set(lessonStatusRef, {
-        current: currentLesson.current,
-        next: currentLesson.next,
-        timeLeft: currentLesson.timeLeft,
-        isFinished: currentLesson.isFinished,
-        isBreak: currentLesson.isBreak,
-        timeUntilNext: currentLesson.timeUntilNext,
-        lastUpdate: serverTimestamp()
-      }).catch(console.error);
-    }
-  }, [classId, currentLesson, serverTime]);
-
-  // Подписываемся на обновления статуса урока от других устройств
-  useEffect(() => {
-    const lessonStatusRef = ref(db, `lesson_status/${classId}`);
+    // Сразу обновляем при изменении расписания
+    updateCurrentLesson();
     
-    const unsubscribe = onValue(lessonStatusRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data && data.lastUpdate) {
-        // Проверяем, не слишком ли старые данные (больше 2 минут)
-        const timeDiff = Date.now() - data.lastUpdate;
-        if (timeDiff < 120000) { // 2 минуты
-          setCurrentLesson({
-            current: data.current,
-            next: data.next,
-            timeLeft: data.timeLeft || { hours: 0, minutes: 0, seconds: 0, totalSeconds: 0 },
-            isFinished: data.isFinished || false,
-            isBreak: data.isBreak || false,
-            timeUntilNext: data.timeUntilNext || { hours: 0, minutes: 0, seconds: 0, totalSeconds: 0 }
-          });
-        }
-      }
-    });
+    // Очищаем предыдущий интервал
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    
+    // Запускаем новый интервал
+    intervalRef.current = setInterval(() => {
+      updateCurrentLesson();
+    }, 1000);
 
-    return () => unsubscribe();
-  }, [classId]);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [schedule]);
+
+  // Очистка при размонтировании
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
 
   return currentLesson;
 }
