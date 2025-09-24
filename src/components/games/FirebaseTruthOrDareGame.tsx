@@ -35,6 +35,10 @@ export default function FirebaseTruthOrDareGame({
   const [currentTurn, setCurrentTurn] = useState<any>(null);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+  const [recentParticipants, setRecentParticipants] = useState<{askers: number[], targets: number[]}>({
+    askers: [],
+    targets: []
+  });
 
   const currentPlayerNumber = getPlayerNumber(players, currentPlayer.id);
   const showPlayerNames = game.settings?.anonymity === false;
@@ -47,6 +51,19 @@ export default function FirebaseTruthOrDareGame({
     // Подписываемся на ходы игры
     const unsubscribeMoves = subscribeToGameMoves(gameId, (move) => {
       setMoves(prev => [...prev, move]);
+      
+      // Отслеживаем участников для улучшения рандомайзера
+      if (move.type === 'answer') {
+        // Когда игрок ответил, обновляем список недавних участников
+        setRecentParticipants(prev => {
+          const maxRecentCount = Math.max(2, Math.floor(Object.keys(players).length / 2));
+          
+          return {
+            askers: [move.playerNumber, ...prev.askers].slice(0, maxRecentCount),
+            targets: [move.playerNumber, ...prev.targets].slice(0, maxRecentCount)
+          };
+        });
+      }
     });
 
     // Подписываемся на текущий ход

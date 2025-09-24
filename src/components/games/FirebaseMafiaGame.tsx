@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Moon, Sun, Users, Eye, Heart, Shield, Skull, Vote, Clock, Crown } from 'lucide-react';
+import { Moon, Sun, Users, Eye, Heart, Shield, Skull, Vote, Clock, Crown, MessageCircle } from 'lucide-react';
 import { 
   subscribeToGameMoves,
   addGameMove,
@@ -40,6 +40,8 @@ export default function FirebaseMafiaGame({
 
   const currentPlayerNumber = getPlayerNumber(players, currentPlayer.id);
   const currentPlayerData = players[currentPlayer.id];
+  
+  const showPlayerNames = game.settings?.anonymity === false;
   
   const playersArray = Object.entries(players).map(([userId, player]) => ({
     userId,
@@ -423,7 +425,7 @@ export default function FirebaseMafiaGame({
       <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
         <h4 className="font-semibold text-gray-900 mb-3">Как играть:</h4>
         <div className="space-y-2 text-sm text-gray-700">
-          <p>🎭 <strong>Анонимность:</strong> Все игроки получают случайные номера</p>
+          <p>🎭 <strong>Номера:</strong> Все игроки получают случайные номера{showPlayerNames ? ', но имена видны' : ' для анонимности'}</p>
           <p>🌙 <strong>Ночь:</strong> Мафия выбирает жертву, врач может спасти, детектив проверяет роль</p>
           <p>☀️ <strong>День:</strong> Все игроки обсуждают и голосуют за исключение подозрительного</p>
           <p>🎯 <strong>Цель мафии:</strong> Устранить всех мирных жителей</p>

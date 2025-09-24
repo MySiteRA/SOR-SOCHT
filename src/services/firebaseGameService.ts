@@ -52,7 +52,7 @@ export function createGame(
   creatorId: string,
   creatorName: string,
   gameType: 'truth_or_dare' | 'mafia' | 'quiz',
-  maxPlayers: number = 6
+  maxPlayers: number = 10
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const gamesRef = ref(db, 'games');

@@ -98,7 +98,7 @@ export default function StudentGamesPage() {
         studentData.student.id,
         studentData.student.name,
         gameType,
-        gameType === 'mafia' ? 8 : 6 // Мафия требует больше игроков
+        10 // Максимум 10 игроков для всех типов игр
       );
 
       // Перенаправляем на страницу игры
@@ -415,7 +415,7 @@ export default function StudentGamesPage() {
                       {gameType.description}
                     </p>
                     <div className="text-xs text-gray-500 mt-2">
-                      Макс. игроков: {gameType.type === 'mafia' ? '8' : '6'}
+                      Макс. игроков: 10
                     </div>
                   </div>
 
