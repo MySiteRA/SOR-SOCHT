@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { dataPreloader } from './services/preloader';
@@ -27,6 +27,16 @@ import { Lock } from 'lucide-react';
 import { useLanguage } from './contexts/LanguageContext';
 import { useNavigationGuard } from './hooks/useNavigationGuard';
 import LoadingSpinner from './components/LoadingSpinner';
+
+function RouterSelector({ children }: { children: React.ReactNode }) {
+  // Если приложение открыто внутри WebView (например, Android)
+  const isMobileApp = /wv/.test(navigator.userAgent.toLowerCase());
+
+  if (isMobileApp) {
+    return <HashRouter>{children}</HashRouter>;
+  }
+  return <BrowserRouter>{children}</BrowserRouter>;
+}
 
 function AppContent() {
   const { t } = useLanguage();
@@ -332,9 +342,9 @@ function AppContent() {
 function App() {
   return (
     <LanguageProvider>
-      <Router>
+      <RouterSelector>
         <AppContent />
-      </Router>
+      </RouterSelector>
     </LanguageProvider>
   );
 }
