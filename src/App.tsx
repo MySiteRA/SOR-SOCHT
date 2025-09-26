@@ -23,6 +23,7 @@ import AuthPage from './pages/AuthPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Modal from './components/Modal';
 import { validateAdminCredentials } from './lib/api';
+import { checkStudentKeyValidity } from './lib/api';
 import { Lock } from 'lucide-react';
 import { useLanguage } from './contexts/LanguageContext';
 import { useNavigationGuard } from './hooks/useNavigationGuard';
@@ -57,6 +58,9 @@ function AppContent() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
+        // Проверяем валидность сохраненной сессии студента
+        await validateStudentSession();
+        
         // Инициализируем предзагрузку при старте приложения
         await dataPreloader.initializePreloading();
       } catch (error) {
@@ -71,6 +75,36 @@ function AppContent() {
 
     initializeApp();
   }, []);
+
+  const validateStudentSession = async () => {
+    try {
+      const dashboardData = localStorage.getItem('studentDashboardData');
+      if (!dashboardData) return;
+
+      const parsed = JSON.parse(dashboardData);
+      if (!parsed.student?.id) return;
+
+      // Проверяем валидность ключа студента в БД
+      const isValid = await checkStudentKeyValidity(parsed.student.id);
+      
+      if (!isValid) {
+        // Ключ больше не валиден, очищаем сессию
+        localStorage.removeItem('studentDashboardData');
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('createdAt');
+        localStorage.setItem('skipAutoLogin', 'true');
+        
+        // Если мы находимся на студенческой странице, перенаправляем на главную
+        const currentPath = window.location.pathname;
+        if (currentPath.startsWith('/student-')) {
+          navigate('/');
+        }
+      }
+    } catch (error) {
+      console.error('Error validating student session:', error);
+      // В случае ошибки проверки, не очищаем сессию
+    }
+  };
 
   const handleAdminLoginSuccess = () => {
     setIsAdminLoggedIn(true);

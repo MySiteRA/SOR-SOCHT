@@ -629,5 +629,27 @@ export async function logAction(action: string, details: string): Promise<void> 
 export function validateAdminCredentials(username: string, password: string): boolean {
   return (username === 'admin' && password === 'frost2008791533') ||
          (username === 'admin1' && password === 'madiev2009sor');
+}
 
+// ==================== Проверка валидности ключей ====================
+export async function checkStudentKeyValidity(studentId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('keys')
+      .select('id')
+      .eq('student_id', studentId)
+      .eq('status', 'active')
+      .limit(1);
+
+    if (error) {
+      console.error('Error checking student key validity:', error);
+      return false;
+    }
+
+    // Если есть хотя бы один активный ключ, студент валиден
+    return (data && data.length > 0) || false;
+  } catch (error) {
+    console.error('Error in checkStudentKeyValidity:', error);
+    return false;
+  }
 }

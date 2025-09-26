@@ -8,6 +8,7 @@ import MaterialCard from '../components/MaterialCard';
 import MaterialModal from '../components/MaterialModal';
 import StudentAvatar from '../components/StudentAvatar';
 import { usePreloadedData } from '../hooks/usePreloadedData';
+import { checkStudentKeyValidity } from '../lib/api';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,11 +58,32 @@ export default function StudentMaterialsPage() {
   useEffect(() => {
     if (student && subject && type && subjectId) {
       // Данные уже предзагружены, ничего дополнительно загружать не нужно
+      
+      // Проверяем валидность ключа студента
+      validateStudentKey(student.id);
     } else {
       // Если нет данных в state, перенаправляем на дашборд
       navigate('/student-dashboard');
     }
   }, [student, subject, type, subjectId]);
+
+  const validateStudentKey = async (studentId: string) => {
+    try {
+      const isValid = await checkStudentKeyValidity(studentId);
+      
+      if (!isValid) {
+        // Ключ больше не валиден, принудительно разлогиниваем
+        localStorage.removeItem('studentDashboardData');
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('createdAt');
+        localStorage.setItem('skipAutoLogin', 'true');
+        navigate('/', { replace: true });
+      }
+    } catch (error) {
+      console.error('Error validating student key:', error);
+      // В случае ошибки проверки, не разлогиниваем
+    }
+  };
 
   const handleBack = () => {
     // Используем history.back() для корректной работы системной кнопки "Назад"

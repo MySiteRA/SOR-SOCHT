@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { supabase } from '../lib/supabase';
 import { getLatestScheduleForClass } from '../lib/api';
+import { checkStudentKeyValidity } from '../lib/api';
 import { useRealtimeLessonTimer } from '../hooks/useRealtimeLessonTimer';
 import {
   DropdownMenu,
@@ -50,11 +51,33 @@ export default function StudentSchedulePage() {
     if (saved) {
       const data = JSON.parse(saved);
       setStudentData(data);
+      
+      // Проверяем валидность ключа студента
+      validateStudentKey(data.student.id);
+      
       loadSchedule(data.student.class_id);
     } else {
       navigate('/', { replace: true });
     }
   }, []);
+
+  const validateStudentKey = async (studentId: string) => {
+    try {
+      const isValid = await checkStudentKeyValidity(studentId);
+      
+      if (!isValid) {
+        // Ключ больше не валиден, принудительно разлогиниваем
+        localStorage.removeItem('studentDashboardData');
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('createdAt');
+        localStorage.setItem('skipAutoLogin', 'true');
+        navigate('/', { replace: true });
+      }
+    } catch (error) {
+      console.error('Error validating student key:', error);
+      // В случае ошибки проверки, не разлогиниваем
+    }
+  };
 
   const loadSchedule = async (classId: string) => {
     try {

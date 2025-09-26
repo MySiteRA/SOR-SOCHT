@@ -8,6 +8,7 @@ import MaterialCard from '../components/MaterialCard';
 import MaterialModal from '../components/MaterialModal';
 import StudentAvatar from '../components/StudentAvatar';
 import { usePreloadedData } from '../hooks/usePreloadedData';
+import { checkStudentKeyValidity } from '../lib/api';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,12 +50,34 @@ export default function StudentSorPage() {
   useEffect(() => {
     const saved = localStorage.getItem('studentDashboardData');
     if (saved) {
-      setStudentData(JSON.parse(saved));
+      const data = JSON.parse(saved);
+      setStudentData(data);
+      
+      // Проверяем валидность ключа студента
+      validateStudentKey(data.student.id);
     } else {
       navigate('/', { replace: true });
       return;
     }
   }, []);
+
+  const validateStudentKey = async (studentId: string) => {
+    try {
+      const isValid = await checkStudentKeyValidity(studentId);
+      
+      if (!isValid) {
+        // Ключ больше не валиден, принудительно разлогиниваем
+        localStorage.removeItem('studentDashboardData');
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('createdAt');
+        localStorage.setItem('skipAutoLogin', 'true');
+        navigate('/', { replace: true });
+      }
+    } catch (error) {
+      console.error('Error validating student key:', error);
+      // В случае ошибки проверки, не разлогиниваем
+    }
+  };
 
   const loadSubjectMaterials = (subject: Subject) => {
     if (!studentData) return;

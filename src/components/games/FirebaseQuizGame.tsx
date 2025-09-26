@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Clock, CheckCircle, XCircle, Users, Play, RotateCcw, Crown } from 'lucide-react';
+import { Trophy, Clock, CheckCircle, XCircle, Users, Play, RotateCcw, Crown, LogOut } from 'lucide-react';
 import { 
   subscribeToGameMoves,
   addGameMove,
   submitQuizAnswer,
   getPlayerByNumber,
   getPlayerNumber,
+  leaveGame,
   type FirebaseGame,
   type FirebasePlayer,
   type FirebaseMove
@@ -131,6 +132,7 @@ export default function FirebaseQuizGame({
   const [showResults, setShowResults] = useState(false);
   const [questionAnswers, setQuestionAnswers] = useState<{[playerNumber: number]: {answer: number, isCorrect: boolean, timestamp: number}}>({});
   const [isQuizMaster, setIsQuizMaster] = useState(false);
+  const [leavingGame, setLeavingGame] = useState(false);
 
   const currentPlayerNumber = getPlayerNumber(players, currentPlayer.id);
   const difficulty = game.settings?.difficulty || 'medium';
@@ -285,6 +287,23 @@ export default function FirebaseQuizGame({
     }, 2000);
   };
 
+  const handleLeaveGame = async () => {
+    if (!confirm('Вы уверены, что хотите покинуть игру?')) {
+      return;
+    }
+
+    try {
+      setLeavingGame(true);
+      await leaveGame(gameId, currentPlayer.id);
+      // Перенаправляем на страницу игр
+      window.history.back();
+    } catch (err) {
+      onError('Ошибка выхода из игры');
+    } finally {
+      setLeavingGame(false);
+    }
+  };
+
   const getPlayerDisplayName = (playerNumber: number) => {
     return `Игрок ${playerNumber}`;
   };
@@ -381,6 +400,24 @@ export default function FirebaseQuizGame({
 
   return (
     <div className="space-y-6">
+      {/* Leave Game Button */}
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={handleLeaveGame}
+        disabled={leavingGame}
+        className="fixed top-4 right-4 z-50 flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg"
+      >
+        {leavingGame ? (
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <LogOut className="w-4 h-4" />
+        )}
+        <span className="text-sm font-medium">
+          {leavingGame ? 'Выход...' : 'Покинуть'}
+        </span>
+      </motion.button>
+
       {/* Question */}
       {currentQuestion && (
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-8">

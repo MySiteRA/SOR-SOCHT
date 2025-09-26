@@ -15,7 +15,8 @@ import {
   validateKey, 
   validatePassword, 
   createPassword,
-  getStudent
+  getStudent,
+  checkStudentKeyValidity
 } from '../lib/api';
 import { getStudent as getStudentService } from '../services/student';
 import { dataPreloader } from '../services/preloader';
@@ -94,6 +95,18 @@ export default function HomePage({ onShowAdminModal, onStudentLogin }: HomePageP
         localStorage.removeItem('studentId');
         localStorage.removeItem('createdAt');
         localStorage.removeItem('studentDashboardData');
+        setIsAutoLoginProcessing(false);
+        return;
+      }
+
+      // Проверяем валидность ключа студента в БД
+      const isKeyValid = await checkStudentKeyValidity(savedId);
+      if (!isKeyValid) {
+        // Ключ больше не валиден, очищаем сессию
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('createdAt');
+        localStorage.removeItem('studentDashboardData');
+        localStorage.setItem('skipAutoLogin', 'true');
         setIsAutoLoginProcessing(false);
         return;
       }

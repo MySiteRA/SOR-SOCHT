@@ -5,6 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ClassChat from '../components/ClassChat';
+import { checkStudentKeyValidity } from '../lib/api';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,10 +25,31 @@ export default function StudentChatPage() {
     if (saved) {
       const data = JSON.parse(saved);
       setStudentData(data);
+      
+      // Проверяем валидность ключа студента
+      validateStudentKey(data.student.id);
     } else {
       navigate('/', { replace: true });
     }
   }, []);
+
+  const validateStudentKey = async (studentId: string) => {
+    try {
+      const isValid = await checkStudentKeyValidity(studentId);
+      
+      if (!isValid) {
+        // Ключ больше не валиден, принудительно разлогиниваем
+        localStorage.removeItem('studentDashboardData');
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('createdAt');
+        localStorage.setItem('skipAutoLogin', 'true');
+        navigate('/', { replace: true });
+      }
+    } catch (error) {
+      console.error('Error validating student key:', error);
+      // В случае ошибки проверки, не разлогиниваем
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('studentDashboardData');

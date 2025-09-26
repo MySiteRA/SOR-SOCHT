@@ -7,6 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import FirebaseTruthOrDareGame from '../components/games/FirebaseTruthOrDareGame';
 import FirebaseQuizGame from '../components/games/FirebaseQuizGame';
 import FirebaseMafiaGame from '../components/games/FirebaseMafiaGame';
+import { checkStudentKeyValidity } from '../lib/api';
 import { 
   joinGame,
   leaveGame,
@@ -64,8 +65,29 @@ export default function StudentGamePage() {
       return;
     }
 
+    // Проверяем валидность ключа студента
+    validateStudentKey(student.id);
+
     setupSubscriptions();
   }, [gameId, student]);
+
+  const validateStudentKey = async (studentId: string) => {
+    try {
+      const isValid = await checkStudentKeyValidity(studentId);
+      
+      if (!isValid) {
+        // Ключ больше не валиден, принудительно разлогиниваем
+        localStorage.removeItem('studentDashboardData');
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('createdAt');
+        localStorage.setItem('skipAutoLogin', 'true');
+        navigate('/', { replace: true });
+      }
+    } catch (error) {
+      console.error('Error validating student key:', error);
+      // В случае ошибки проверки, не разлогиниваем
+    }
+  };
 
   // Загружаем настройки игры при инициализации
   useEffect(() => {

@@ -9,7 +9,8 @@ import {
   updateStudentAvatar, 
   getStudentLoginSessions,
   resetStudentPassword,
-  changeStudentPassword
+  changeStudentPassword,
+  checkStudentKeyValidity
 } from '../lib/api';
 import { usePreloadedData } from '../hooks/usePreloadedData';
 import { dataPreloader } from '../services/preloader';
@@ -49,7 +50,11 @@ export default function StudentProfilePage() {
   useEffect(() => {
     const saved = localStorage.getItem('studentDashboardData');
     if (saved) {
-      setStudentData(JSON.parse(saved));
+      const data = JSON.parse(saved);
+      setStudentData(data);
+      
+      // Проверяем валидность ключа студента
+      validateStudentKey(data.student.id);
     } else {
       navigate('/', { replace: true });
       return;
@@ -57,6 +62,24 @@ export default function StudentProfilePage() {
     
     loadProfileData();
   }, []);
+
+  const validateStudentKey = async (studentId: string) => {
+    try {
+      const isValid = await checkStudentKeyValidity(studentId);
+      
+      if (!isValid) {
+        // Ключ больше не валиден, принудительно разлогиниваем
+        localStorage.removeItem('studentDashboardData');
+        localStorage.removeItem('studentId');
+        localStorage.removeItem('createdAt');
+        localStorage.setItem('skipAutoLogin', 'true');
+        navigate('/', { replace: true });
+      }
+    } catch (error) {
+      console.error('Error validating student key:', error);
+      // В случае ошибки проверки, не разлогиниваем
+    }
+  };
 
   // Синхронизируем с предзагруженными данными
   useEffect(() => {
