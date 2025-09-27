@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Moon, Sun, Users, Eye, Heart, Shield, Skull } from 'lucide-react';
+import { Moon, Sun, Users, Eye, Heart, Shield, Skull, Settings, LogOut } from 'lucide-react';
 import { 
   subscribeToGameEvents, 
   addGameEventRealtime,
@@ -26,6 +26,9 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
   const [selectedTarget, setSelectedTarget] = useState<GamePlayer | null>(null);
   const [votes, setVotes] = useState<{[playerId: string]: string}>({});
   const [rolesAssigned, setRolesAssigned] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   
   // Анимация убийства
   const [showKillAnimation, setShowKillAnimation] = useState(false);
@@ -33,6 +36,17 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
   
   // Анимация дня/ночи
   const [phase, setPhase] = useState<'day' | 'night'>('night');
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const currentPlayerData = players.find(p => p.player_id === currentPlayer.id);
   const alivePlayers = players.filter(p => p.is_alive);
@@ -42,7 +56,11 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
   useEffect(() => {
     // Подписываемся на события игры
     const unsubscribe = subscribeToGameEvents(game.id, (event) => {
-      setEvents(prev => [...prev, event]);
+      // Оптимизация: используем функциональное обновление
+      setEvents(prev => {
+        if (prev.some(e => e.id === event.id)) return prev;
+        return [...prev, event];
+      });
       
       if (event.event_type === 'vote') {
         setVotes(prev => ({
@@ -172,6 +190,70 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
     );
   };
 
+  const handleLeaveGame = () => {
+    if (confirm('Вы уверены, что хотите покинуть игру?')) {
+      window.history.back();
+    }
+  };
+
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
+  // Мемоизированные компоненты для оптимизации
+  const MobileMenu = React.memo(() => (
+    <AnimatePresence>
+      {showMobileMenu && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={() => setShowMobileMenu(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden"
+          >
+            <div className="p-6 space-y-4">
+              <button
+                onClick={handleLeaveGame}
+                className="w-full flex items-center space-x-3 p-3 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 rounded-xl transition-colors"
+              >
+                <LogOut className="w-5 h-5 text-red-600" />
+                <span className="text-red-600 font-medium">Покинуть игру</span>
+              </button>
+              
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                <div className="flex items-center space-x-3">
+                  <Users className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  <span className="text-gray-700 dark:text-gray-200">Игроков</span>
+                </div>
+                <span className="font-bold text-gray-900 dark:text-white">{alivePlayers.length}/{players.length}</span>
+              </div>
+              
+              <button
+                onClick={toggleDarkMode}
+                className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-xl transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  {isDarkMode ? <Sun className="w-5 h-5 text-yellow-500" /> : <Moon className="w-5 h-5 text-indigo-600" />}
+                  <span className="text-gray-700 dark:text-gray-200">Тема</span>
+                </div>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {isDarkMode ? 'Светлая' : 'Темная'}
+                </span>
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  ));
+
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'mafia':
@@ -240,7 +322,47 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
   };
 
   return (
-    <div className="space-y-6 relative">
+    <div className={`space-y-6 relative ${isDarkMode ? 'dark' : ''}`}>
+      {/* Mobile/Desktop Menu */}
+      <div className="fixed top-4 right-4 z-50">
+        {isMobile ? (
+          <button
+            onClick={() => setShowMobileMenu(true)}
+            className="flex items-center justify-center w-12 h-12 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-lg"
+          >
+            <Settings className="w-6 h-6 text-gray-600 dark:text-gray-300" />
+          </button>
+        ) : (
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl shadow-lg">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Раунд {roundNumber}</span>
+            </div>
+            
+            <div className="flex items-center space-x-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl shadow-lg">
+              <Users className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{alivePlayers.length}/{players.length}</span>
+            </div>
+            
+            <button
+              onClick={toggleDarkMode}
+              className="flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-lg"
+            >
+              {isDarkMode ? <Sun className="w-5 h-5 text-yellow-500" /> : <Moon className="w-5 h-5 text-indigo-600" />}
+            </button>
+            
+            <button
+              onClick={handleLeaveGame}
+              className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-700 transition-colors shadow-lg"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-sm font-medium">Покинуть</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      <MobileMenu />
+
       {/* Анимация дня/ночи */}
       <AnimatePresence>
         {/* Ночь */}
@@ -322,7 +444,7 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
       </AnimatePresence>
 
       {/* Game Status */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 relative z-40">
+      <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-xl shadow-lg border p-6 relative z-40`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             {gamePhase === 'night' ? (
@@ -331,10 +453,10 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
               <Sun className="w-6 h-6 text-yellow-500" />
             )}
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                 Раунд {roundNumber} - {gamePhase === 'night' ? 'Ночь' : 'День'}
               </h3>
-              <p className="text-sm text-gray-600">
+              <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 {gamePhase === 'night' 
                   ? 'Особые роли выполняют свои действия' 
                   : 'Обсуждение и голосование'
@@ -343,7 +465,7 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
             </div>
           </div>
           
-          <div className="text-right text-sm text-gray-600">
+          <div className={`text-right text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
             <div>Мафия: {mafiaPlayers.length}</div>
             <div>Мирные: {civilianPlayers.length}</div>
           </div>
@@ -351,14 +473,14 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
 
         {/* Player Role */}
         {currentPlayerData && (
-          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+          <div className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg p-4 mb-4`}>
             <div className="flex items-center space-x-3">
               {getRoleIcon(currentPlayerData.role)}
               <div>
-                <h4 className="font-semibold text-gray-900">
+                <h4 className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   Ваша роль: {getRoleName(currentPlayerData.role)}
                 </h4>
-                <p className="text-sm text-gray-600">
+                <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                   {getRoleDescription(currentPlayerData.role)}
                 </p>
               </div>
@@ -386,8 +508,8 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
       </div>
 
       {/* Players Grid */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 relative z-40">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+      <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-xl shadow-lg border p-6 relative z-40`}>
+        <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'} mb-4 flex items-center space-x-2`}>
           <Users className="w-5 h-5 text-indigo-600" />
           <span>Игроки ({alivePlayers.length} живых)</span>
         </h3>
@@ -399,14 +521,14 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.05 }}
-              className={`p-4 rounded-lg border-2 transition-all relative ${
+              className={`p-4 rounded-lg border-2 transition-all duration-200 relative ${
                 !player.is_alive
-                  ? 'border-red-200 bg-red-50 opacity-60'
+                  ? `border-red-200 ${isDarkMode ? 'bg-red-900/20' : 'bg-red-50'} opacity-60`
                   : selectedTarget?.id === player.id
-                    ? 'border-indigo-500 bg-indigo-50'
+                    ? `border-indigo-500 ${isDarkMode ? 'bg-indigo-900/30' : 'bg-indigo-50'}`
                     : canVote() && getVotingTargets().some(t => t.id === player.id)
-                      ? 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 cursor-pointer'
-                      : 'border-gray-200 bg-gray-50'
+                      ? `border-gray-200 hover:border-indigo-300 ${isDarkMode ? 'hover:bg-indigo-900/20 bg-gray-700' : 'hover:bg-indigo-50 bg-gray-50'} cursor-pointer`
+                      : `border-gray-200 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}`
               }`}
               onClick={() => {
                 if (canVote() && getVotingTargets().some(t => t.id === player.id)) {
@@ -431,7 +553,9 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
                   )}
                 </div>
                 <p className={`text-sm font-medium truncate ${
-                  !player.is_alive ? 'text-gray-500 line-through' : 'text-gray-900'
+                  !player.is_alive 
+                    ? 'text-gray-500 line-through' 
+                    : isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}>
                   {player.player_name}
                 </p>
@@ -439,7 +563,7 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
                 {(!player.is_alive || game.status === 'finished') && (
                   <div className="flex items-center justify-center space-x-1 mt-1">
                     {getRoleIcon(player.role)}
-                    <span className="text-xs text-gray-600">
+                    <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                       {getRoleName(player.role)}
                     </span>
                   </div>
@@ -451,12 +575,12 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
       </div>
 
       {/* Game Events */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 relative z-40">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">События игры</h3>
+      <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'} rounded-xl shadow-lg border p-6 relative z-40`}>
+        <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'} mb-4`}>События игры</h3>
         
         <div className="space-y-3 max-h-64 overflow-y-auto">
           {events.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               События игры будут отображаться здесь
             </div>
           ) : (
@@ -466,29 +590,29 @@ export default function MafiaGame({ game, players, currentPlayer, onError }: Maf
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.02 }}
-                className={`p-3 rounded-lg ${
+                className={`p-3 rounded-lg transition-colors ${
                   event.event_type === 'system' 
-                    ? 'bg-blue-50 border border-blue-200' 
+                    ? `${isDarkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}` 
                     : event.event_type === 'action' && event.metadata?.action === 'kill'
-                      ? 'bg-red-50 border border-red-200'
-                      : 'bg-gray-50 border border-gray-200'
+                      ? `${isDarkMode ? 'bg-red-900/30 border border-red-700' : 'bg-red-50 border border-red-200'}`
+                      : `${isDarkMode ? 'bg-gray-700 border border-gray-600' : 'bg-gray-50 border border-gray-200'}`
                 }`}
               >
                 <div className="text-sm">
                   {event.player_name && event.event_type !== 'system' && (
-                    <span className="font-medium text-gray-900">
+                    <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                       {event.player_name}:{' '}
                     </span>
                   )}
                   <span className={`${
                     event.event_type === 'action' && event.metadata?.action === 'kill'
                       ? 'text-red-700 font-medium'
-                      : 'text-gray-700'
+                      : isDarkMode ? 'text-gray-200' : 'text-gray-700'
                   }`}>
                     {event.content}
                   </span>
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
                   {new Date(event.created_at).toLocaleTimeString('ru-RU', {
                     hour: '2-digit',
                     minute: '2-digit'

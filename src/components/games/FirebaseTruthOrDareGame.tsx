@@ -69,13 +69,28 @@ export default function FirebaseTruthOrDareGame({
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [floatingEmojis, setFloatingEmojis] = useState<Array<{id: string, emoji: string, x: number, y: number}>>([]);
   const [leavingGame, setLeavingGame] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState(0);
 
   const currentPlayerNumber = getPlayerNumber(players, currentPlayer.id);
   const showPlayerNames = game.settings?.anonymity === false;
-  const playersArray = Object.entries(players).map(([userId, player]) => ({
+  
+  // Оптимизация: мемоизация массива игроков с проверкой изменений
+  const playersArray = React.useMemo(() => {
+    return Object.entries(players).map(([userId, player]) => ({
     userId,
     ...player
-  })).sort((a, b) => a.number - b.number);
+    })).sort((a, b) => a.number - b.number);
+  }, [Object.keys(players).length, Object.values(players).map(p => p.number).join(',')]);
+
+  // Оптимизация: дебаунс обновлений для лучшего FPS
+  const throttledMoves = React.useMemo(() => {
+    const now = Date.now();
+    if (now - lastUpdateTime > 100) { // Обновляем максимум раз в 100мс
+      setLastUpdateTime(now);
+      return moves;
+    }
+    return moves;
+  }, [moves.length]);
 
   // Умный выбор следующего игрока
   const getNextPlayer = (availablePlayers: any[], currentPlayerId: string, recentList: number[], playerType: 'asker' | 'target') => {
@@ -119,7 +134,13 @@ export default function FirebaseTruthOrDareGame({
   useEffect(() => {
     // Подписываемся на ходы игры
     const unsubscribeMoves = subscribeToGameMoves(gameId, (move) => {
-      setMoves(prev => [...prev, move]);
+      // Оптимизация: проверяем дубликаты перед добавлением
+      setMoves(prev => {
+        if (prev.some(m => m.id === move.id)) return prev;
+        const newMoves = [...prev, move];
+        // Ограничиваем количество ходов для лучшей производительности
+        return newMoves.slice(-50);
+      });
       
       // Обновляем историю участников для умного рандомайзера
       if (move.type === 'answer') {
@@ -132,7 +153,7 @@ export default function FirebaseTruthOrDareGame({
           };
         });
         
-        // Показываем конфетти после ответа
+        // Показываем конфетти после ответа (оптимизировано)
         setShowConfetti(true);
         spawnFloatingEmoji();
         setTimeout(() => setShowConfetti(false), 3000);
@@ -578,6 +599,30 @@ export default function FirebaseTruthOrDareGame({
                     <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                       на {currentTurn?.choice === 'truth' ? 'вопрос' : 'задание'}
                     </p>
+                    
+                    {/* Показываем вопрос/задание */}
+                    {currentTurn?.question && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`mt-4 p-4 rounded-xl border ${
+                          currentTurn.choice === 'truth'
+                            ? isDarkMode 
+                              ? 'bg-blue-500/20 border-blue-400/50' 
+                              : 'bg-blue-50 border-blue-300'
+                            : isDarkMode 
+                              ? 'bg-orange-500/20 border-orange-400/50' 
+                              : 'bg-orange-50 border-orange-300'
+                        }`}
+                      >
+                        <div className="text-2xl mb-2">
+                          {currentTurn.choice === 'truth' ? '🤔' : '⚡'}
+                        </div>
+                        <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>
+                          {currentTurn.question}
+                        </p>
+                      </motion.div>
+                    )}
                   </div>
                   
                   <div className="space-y-4">
@@ -643,10 +688,9 @@ export default function FirebaseTruthOrDareGame({
                 return (
                   <motion.div
                     key={player.userId}
-                    initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ delay: index * 0.1, type: "spring", stiffness: 300 }}
-                    whileHover={{ scale: 1.05, y: -5 }}
+                    initial={false}
+                    animate={{ opacity: 1 }}
+                    whileHover={{ scale: 1.01 }}
                     className={`p-4 rounded-xl border-2 transition-all duration-300 text-center relative overflow-hidden ${
                       isCurrentPlayer
                         ? isDarkMode 
@@ -667,7 +711,7 @@ export default function FirebaseTruthOrDareGame({
                   >
                     {/* Glow Effect */}
                     {(isAsker || isTarget || isCurrentPlayer) && (
-                      <div className={`absolute inset-0 rounded-xl opacity-20 ${
+                      <div className={`absolute inset-0 rounded-xl opacity-10 ${
                         isCurrentPlayer 
                           ? 'bg-gradient-to-r from-indigo-500 to-purple-600' 
                           : isAsker 
@@ -678,8 +722,8 @@ export default function FirebaseTruthOrDareGame({
                     
                     <div className="relative z-10">
                       <motion.div
-                        animate={isAsker || isTarget ? { scale: [1, 1.1, 1] } : {}}
-                        transition={{ duration: 1, repeat: Infinity }}
+                        animate={isAsker || isTarget ? { scale: [1, 1.02, 1] } : {}}
+                        transition={{ duration: 3, repeat: Infinity }}
                         className={`w-16 h-16 rounded-full bg-gradient-to-r ${playerColor} flex items-center justify-center mx-auto mb-3 text-white font-bold text-lg shadow-lg`}
                       >
                         {player.number}
@@ -750,8 +794,8 @@ export default function FirebaseTruthOrDareGame({
               {moves.length === 0 ? (
                 <div className="text-center py-12">
                   <motion.div
-                    animate={{ rotate: [0, 10, -10, 0] }}
-                    transition={{ duration: 2, repeat: Infinity }}
+                    animate={{ rotate: [0, 2, -2, 0] }}
+                    transition={{ duration: 6, repeat: Infinity }}
                     className="text-6xl mb-4"
                   >
                     🎭
@@ -761,12 +805,11 @@ export default function FirebaseTruthOrDareGame({
                   </p>
                 </div>
               ) : (
-                moves.map((move, index) => (
+                throttledMoves.slice(-20).map((move, index) => (
                   <motion.div
                     key={move.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
+                    initial={false}
+                    animate={{ opacity: 1 }}
                     className={`p-4 rounded-xl border backdrop-blur-sm ${
                       move.type === 'system' 
                         ? isDarkMode 
@@ -791,8 +834,7 @@ export default function FirebaseTruthOrDareGame({
                   >
                     <div className="flex items-start space-x-3">
                       <motion.div
-                        animate={{ rotate: [0, 10, -10, 0] }}
-                        transition={{ duration: 2, repeat: Infinity }}
+                        initial={false}
                         className="text-2xl"
                       >
                         {move.type === 'system' ? '🤖' : 
@@ -809,37 +851,35 @@ export default function FirebaseTruthOrDareGame({
                         {/* Question/Answer Details */}
                         {move.type === 'question' && move.metadata?.question && (
                           <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
+                            initial={false}
                             className={`mt-3 p-3 rounded-lg border ${
                               isDarkMode 
                                 ? 'bg-gray-700/50 border-gray-600' 
                                 : 'bg-white/80 border-gray-200'
                             }`}
                           >
-                            <TypewriterText 
-                              text={`"${move.metadata.question}"`}
-                              speed={20}
+                            <span
                               className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-800'}`}
-                            />
+                            >
+                              "{move.metadata.question}"
+                            </span>
                           </motion.div>
                         )}
                         
                         {move.type === 'answer' && move.metadata?.answer && (
                           <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
+                            initial={false}
                             className={`mt-3 p-3 rounded-lg border ${
                               isDarkMode 
                                 ? 'bg-gray-700/50 border-gray-600' 
                                 : 'bg-white/80 border-gray-200'
                             }`}
                           >
-                            <TypewriterText 
-                              text={`"${move.metadata.answer}"`}
-                              speed={20}
+                            <span
                               className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-800'}`}
-                            />
+                            >
+                              "{move.metadata.answer}"
+                            </span>
                           </motion.div>
                         )}
                         

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Moon, Sun, Users, Eye, Heart, Shield, Skull, LogOut, Crown, Vote, AlertTriangle, Timer, MessageCircle, CheckCircle } from 'lucide-react';
+import { Moon, Sun, Users, Eye, Heart, Shield, Skull, LogOut, Crown, Vote, AlertTriangle, Timer, MessageCircle, CheckCircle, Settings } from 'lucide-react';
 import { 
   subscribeToGameMoves,
   addGameMove,
@@ -58,19 +58,34 @@ export default function FirebaseMafiaGame({
   const [leavingGame, setLeavingGame] = useState(false);
   const [phaseTimer, setPhaseTimer] = useState(0);
   const [autoPhaseEnabled, setAutoPhaseEnabled] = useState(true);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   
   const currentPlayerNumber = getPlayerNumber(players, currentPlayer.id);
   const currentPlayerData = players[currentPlayer.id];
   const showPlayerNames = game.settings?.anonymity === false;
   
-  const playersArray = Object.entries(players).map(([userId, player]) => ({
+  // Оптимизация: мемоизация массива игроков
+  const playersArray = React.useMemo(() => Object.entries(players).map(([userId, player]) => ({
     userId,
     ...player
-  })).sort((a, b) => a.number - b.number);
+  })).sort((a, b) => a.number - b.number), [players]);
   
   const alivePlayers = playersArray.filter(p => p.isAlive !== false);
   const mafiaPlayers = alivePlayers.filter(p => p.role === 'mafia');
   const civilianPlayers = alivePlayers.filter(p => p.role !== 'mafia');
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Проверяем, все ли выполнили свои ночные действия
   const checkNightActionsComplete = () => {
@@ -120,7 +135,11 @@ export default function FirebaseMafiaGame({
   useEffect(() => {
     // Подписываемся на ходы игры
     const unsubscribe = subscribeToGameMoves(gameId, (move) => {
-      setMoves(prev => [...prev, move]);
+      // Оптимизация: проверяем дубликаты
+      setMoves(prev => {
+        if (prev.some(m => m.id === move.id)) return prev;
+        return [...prev, move];
+      });
       
       if (move.type === 'vote') {
         if (move.metadata?.voteType === 'night') {
@@ -443,8 +462,102 @@ export default function FirebaseMafiaGame({
     }
   };
 
+  // Мемоизированные компоненты для оптимизации
+  const MobileMenu = React.memo(() => (
+    <AnimatePresence>
+      {showMobileMenu && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={() => setShowMobileMenu(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden"
+          >
+            <div className="p-6 space-y-4">
+              <button
+                onClick={handleLeaveGame}
+                className="w-full flex items-center space-x-3 p-3 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 rounded-xl transition-colors"
+              >
+                <LogOut className="w-5 h-5 text-red-600" />
+                <span className="text-red-600 font-medium">Покинуть игру</span>
+              </button>
+              
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                <div className="flex items-center space-x-3">
+                  <Users className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  <span className="text-gray-700 dark:text-gray-200">Игроков</span>
+                </div>
+                <span className="font-bold text-gray-900 dark:text-white">{alivePlayers.length}/{playersArray.length}</span>
+              </div>
+              
+              <button
+                onClick={() => setIsDarkMode(!isDarkMode)}
+                className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-xl transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  {isDarkMode ? <Sun className="w-5 h-5 text-yellow-500" /> : <Moon className="w-5 h-5 text-indigo-600" />}
+                  <span className="text-gray-700 dark:text-gray-200">Тема</span>
+                </div>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {isDarkMode ? 'Светлая' : 'Темная'}
+                </span>
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  ));
+
   return (
     <AtmosphereBackground phase={gamePhase === 'night' ? 'night' : 'day'}>
+      {/* Mobile/Desktop Menu */}
+      <div className="fixed top-4 right-4 z-50">
+        {isMobile ? (
+          <button
+            onClick={() => setShowMobileMenu(true)}
+            className="flex items-center justify-center w-12 h-12 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-colors shadow-lg"
+          >
+            <Settings className="w-6 h-6 text-gray-600 dark:text-gray-300" />
+          </button>
+        ) : (
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 px-4 py-2 rounded-xl shadow-lg">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Раунд {roundNumber}</span>
+            </div>
+            
+            <div className="flex items-center space-x-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 px-4 py-2 rounded-xl shadow-lg">
+              <Users className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{alivePlayers.length}/{playersArray.length}</span>
+            </div>
+            
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="flex items-center justify-center w-10 h-10 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-colors shadow-lg"
+            >
+              {isDarkMode ? <Sun className="w-5 h-5 text-yellow-500" /> : <Moon className="w-5 h-5 text-indigo-600" />}
+            </button>
+            
+            <button
+              onClick={handleLeaveGame}
+              className="flex items-center space-x-2 bg-red-600/90 backdrop-blur-md text-white px-4 py-2 rounded-xl hover:bg-red-700 transition-colors shadow-lg"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-sm font-medium">Покинуть</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      <MobileMenu />
+
       {/* Phase Transition */}
       <PhaseTransition
         isVisible={showPhaseTransition}
@@ -460,30 +573,12 @@ export default function FirebaseMafiaGame({
         onComplete={() => setShowKillAnimation(false)}
       />
 
-      {/* Leave Game Button */}
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={handleLeaveGame}
-        disabled={leavingGame}
-        className="fixed top-4 right-4 z-50 flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg"
-      >
-        {leavingGame ? (
-          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <LogOut className="w-4 h-4" />
-        )}
-        <span className="text-sm font-medium">
-          {leavingGame ? 'Выход...' : 'Покинуть'}
-        </span>
-      </motion.button>
-
       <div className="container mx-auto px-4 py-8 relative z-10">
         {/* Game Status HUD */}
         <motion.div
           initial={{ y: -50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6 mb-8 shadow-2xl"
+          className={`${isDarkMode ? 'bg-black/20' : 'bg-white/10'} backdrop-blur-md rounded-2xl border ${isDarkMode ? 'border-purple-500/30' : 'border-white/20'} p-6 mb-8 shadow-2xl`}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-4">
@@ -494,10 +589,10 @@ export default function FirebaseMafiaGame({
                   <Sun className="w-6 h-6 text-yellow-400" />
                 )}
                 <div>
-                  <h3 className="text-xl font-bold text-white">
+                  <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     Раунд {roundNumber} - {gamePhase === 'night' ? 'Ночь' : 'День'}
                   </h3>
-                  <p className="text-sm text-gray-300">
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                     {gamePhase === 'night' 
                       ? 'Особые роли выполняют свои действия' 
                       : 'Обсуждение и голосование'
@@ -507,11 +602,11 @@ export default function FirebaseMafiaGame({
               </div>
               
               <div className="text-sm text-gray-300">
-                Ваш номер: <span className="font-bold text-white">Игрок {currentPlayerNumber}</span>
+                Ваш номер: <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Игрок {currentPlayerNumber}</span>
               </div>
             </div>
             
-            <div className="text-right text-sm text-gray-300">
+            <div className={`text-right text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
               {/* Таймер фазы */}
               {phaseTimer > 0 && (
                 <div className="flex items-center space-x-2 mb-2">
@@ -541,14 +636,14 @@ export default function FirebaseMafiaGame({
 
           {/* Player Role Info */}
           {currentPlayerData && (
-            <div className="bg-black/20 rounded-xl p-4 border border-white/10">
+            <div className={`${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-gray-100/80 border-gray-200'} rounded-xl p-4 border`}>
               <div className="flex items-center space-x-3">
                 {getRoleIcon(currentPlayerData.role || 'civilian')}
                 <div>
-                  <h4 className="font-bold text-white">
+                  <h4 className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     Ваша роль: {getRoleName(currentPlayerData.role || 'civilian')}
                   </h4>
-                  <p className="text-sm text-gray-300">
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                     {getRoleDescription(currentPlayerData.role || 'civilian', gamePhase)}
                   </p>
                 </div>
@@ -577,24 +672,24 @@ export default function FirebaseMafiaGame({
           )}
           
           {/* Автоматическое переключение */}
-          <div className="mt-4 bg-black/20 rounded-xl p-3 border border-white/10">
+          <div className={`mt-4 ${isDarkMode ? 'bg-black/20 border-white/10' : 'bg-gray-100/80 border-gray-200'} rounded-xl p-3 border`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <div className={`w-3 h-3 rounded-full ${autoPhaseEnabled ? 'bg-green-400 animate-pulse' : 'bg-gray-400'}`} />
-                <span className="text-sm text-gray-300">
+                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                   Автоматическая смена фаз: {autoPhaseEnabled ? 'Включена' : 'Выключена'}
                 </span>
               </div>
               <button
                 onClick={() => setAutoPhaseEnabled(!autoPhaseEnabled)}
-                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                className={`text-xs ${isDarkMode ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-700'} transition-colors`}
               >
                 {autoPhaseEnabled ? 'Выключить' : 'Включить'}
               </button>
             </div>
             
             {autoPhaseEnabled && (
-              <div className="mt-2 text-xs text-gray-400">
+              <div className={`mt-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 {gamePhase === 'night' 
                   ? `Ночь закончится когда все роли выполнят действия (${getPhaseProgress().completed}/${getPhaseProgress().total})`
                   : `День закончится когда все проголосуют (${getPhaseProgress().completed}/${getPhaseProgress().total})`
@@ -609,9 +704,9 @@ export default function FirebaseMafiaGame({
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6 mb-8 shadow-2xl"
+          className={`${isDarkMode ? 'bg-white/10 border-white/20' : 'bg-gray-100/80 border-gray-200'} backdrop-blur-md rounded-2xl border p-6 mb-8 shadow-2xl`}
         >
-          <h3 className="text-xl font-bold text-white mb-6 flex items-center space-x-2">
+          <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'} mb-6 flex items-center space-x-2`}>
             <Users className="w-6 h-6" />
             <span>Игроки ({alivePlayers.length} живых)</span>
           </h3>
@@ -633,28 +728,25 @@ export default function FirebaseMafiaGame({
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ delay: index * 0.1, type: "spring", stiffness: 300 }}
                   whileHover={!isDead && canVoteForThis ? { 
-                    scale: 1.05, 
-                    y: -8,
-                    boxShadow: gamePhase === 'night' 
-                      ? '0 10px 30px rgba(239, 68, 68, 0.3)' 
-                      : '0 10px 30px rgba(251, 146, 60, 0.3)'
+                    scale: 1.02, 
+                    y: -4
                   } : {}}
-                  whileTap={!isDead && canVoteForThis ? { scale: 0.95 } : {}}
+                  whileTap={!isDead && canVoteForThis ? { scale: 0.98 } : {}}
                   onClick={() => canVoteForThis ? handleVote(player.number) : null}
-                  className={`p-6 rounded-2xl border-2 transition-all duration-300 relative overflow-hidden cursor-pointer ${
+                  className={`p-6 rounded-2xl border-2 transition-all duration-200 relative overflow-hidden cursor-pointer ${
                     isDead
-                      ? 'border-red-300 bg-red-100/20 opacity-50 cursor-not-allowed'
+                      ? `border-red-300 ${isDarkMode ? 'bg-red-900/20' : 'bg-red-100/20'} opacity-50 cursor-not-allowed`
                       : isSelected
                         ? gamePhase === 'night'
-                          ? 'border-red-500 bg-red-500/20 shadow-2xl shadow-red-500/50'
-                          : 'border-orange-500 bg-orange-500/20 shadow-2xl shadow-orange-500/50'
+                          ? `border-red-500 ${isDarkMode ? 'bg-red-500/30' : 'bg-red-500/20'} shadow-xl`
+                          : `border-orange-500 ${isDarkMode ? 'bg-orange-500/30' : 'bg-orange-500/20'} shadow-xl`
                         : isCurrentPlayer
                           ? gamePhase === 'night'
-                            ? 'border-indigo-400 bg-indigo-500/20 shadow-lg shadow-indigo-500/30'
-                            : 'border-indigo-500 bg-indigo-100/50 shadow-lg shadow-indigo-500/20'
+                            ? `border-indigo-400 ${isDarkMode ? 'bg-indigo-500/30' : 'bg-indigo-500/20'} shadow-lg`
+                            : `border-indigo-500 ${isDarkMode ? 'bg-indigo-500/30' : 'bg-indigo-100/50'} shadow-lg`
                           : gamePhase === 'night'
-                            ? 'border-gray-600 bg-gray-700/30 hover:border-red-400 hover:bg-red-500/10'
-                            : 'border-gray-300 bg-white/50 hover:border-orange-400 hover:bg-orange-500/10'
+                            ? `border-gray-600 ${isDarkMode ? 'bg-gray-700/30 hover:border-red-400 hover:bg-red-500/10' : 'bg-gray-200/50 hover:border-red-400 hover:bg-red-500/10'}`
+                            : `border-gray-300 ${isDarkMode ? 'bg-gray-700/30 hover:border-orange-400 hover:bg-orange-500/10' : 'bg-white/50 hover:border-orange-400 hover:bg-orange-500/10'}`
                   }`}
                 >
                   {/* Action Status Indicator */}
@@ -847,16 +939,16 @@ export default function FirebaseMafiaGame({
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6 shadow-2xl"
+          className={`${isDarkMode ? 'bg-white/10 border-white/20' : 'bg-gray-100/80 border-gray-200'} backdrop-blur-md rounded-2xl border p-6 shadow-2xl`}
         >
-          <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
+          <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'} mb-4 flex items-center space-x-2`}>
             <MessageCircle className="w-6 h-6" />
             <span>События игры</span>
           </h3>
           
           <div className="space-y-3 max-h-64 overflow-y-auto">
             {moves.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
+              <div className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 События игры будут отображаться здесь
               </div>
             ) : (
@@ -866,16 +958,16 @@ export default function FirebaseMafiaGame({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.02 }}
-                  className={`p-3 rounded-lg backdrop-blur-sm ${
+                  className={`p-3 rounded-lg backdrop-blur-sm transition-colors ${
                     move.type === 'system' 
-                      ? 'bg-blue-500/20 border border-blue-400/30' 
+                      ? `${isDarkMode ? 'bg-blue-500/20 border border-blue-400/30' : 'bg-blue-100/80 border border-blue-300'}` 
                       : move.type === 'kill'
-                        ? 'bg-red-500/20 border border-red-400/30'
+                        ? `${isDarkMode ? 'bg-red-500/20 border border-red-400/30' : 'bg-red-100/80 border border-red-300'}`
                         : move.type === 'vote'
-                          ? 'bg-orange-500/20 border border-orange-400/30'
+                          ? `${isDarkMode ? 'bg-orange-500/20 border border-orange-400/30' : 'bg-orange-100/80 border border-orange-300'}`
                           : move.type === 'elimination'
-                            ? 'bg-purple-500/20 border border-purple-400/30'
-                          : 'bg-gray-500/20 border border-gray-400/30'
+                            ? `${isDarkMode ? 'bg-purple-500/20 border border-purple-400/30' : 'bg-purple-100/80 border border-purple-300'}`
+                            : `${isDarkMode ? 'bg-gray-500/20 border border-gray-400/30' : 'bg-gray-100/80 border border-gray-300'}`
                   }`}
                 >
                   <div className="text-sm">
@@ -883,9 +975,9 @@ export default function FirebaseMafiaGame({
                     {move.type === 'kill' && '💀 '}
                     {move.type === 'vote' && '🗳️ '}
                     {move.type === 'elimination' && '⚖️ '}
-                    <span className="text-white">{move.content}</span>
+                    <span className={isDarkMode ? 'text-white' : 'text-gray-800'}>{move.content}</span>
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">
+                  <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
                     {new Date(move.createdAt).toLocaleTimeString('ru-RU', {
                       hour: '2-digit',
                       minute: '2-digit'
