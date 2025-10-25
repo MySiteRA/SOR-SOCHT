@@ -827,16 +827,6 @@ export default function FirebaseMafiaGame({
                         </motion.div>
                       )}
                       
-                      {/* Creator Crown */}
-                      {isCreator && (
-                        <motion.div
-                          animate={{ rotate: [0, 10, -10, 0] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                          className="absolute -top-4 -left-2"
-                        >
-                          <Crown className="w-6 h-6 text-yellow-400 filter drop-shadow-lg" />
-                        </motion.div>
-                      )}
                     </motion.div>
                     
                     {/* Player Name */}
@@ -855,16 +845,6 @@ export default function FirebaseMafiaGame({
                       {showPlayerNames ? player.name : `Игрок ${player.number}`}
                     </motion.div>
                     
-                    {/* Current Player Indicator */}
-                    {isCurrentPlayer && (
-                      <motion.div
-                        animate={{ opacity: [0.5, 1, 0.5] }}
-                        transition={{ duration: 1.5, repeat: Infinity }}
-                        className="text-xs text-indigo-400 font-bold mt-2"
-                      >
-                        ✨ Это вы
-                      </motion.div>
-                    )}
                     
                     {/* Selection Indicator */}
                     {isSelected && !isDead && (

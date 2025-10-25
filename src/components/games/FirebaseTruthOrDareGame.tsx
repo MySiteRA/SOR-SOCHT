@@ -299,111 +299,186 @@ export default function FirebaseTruthOrDareGame({
       {/* Confetti Effect */}
       {showConfetti && <Confetti />}
 
-      {/* Dark Mode Toggle */}
-      <button
-        onClick={() => setIsDarkMode(!isDarkMode)}
-        className={`fixed top-4 right-16 z-50 p-3 rounded-full transition-all duration-300 ${
-          isDarkMode 
-            ? 'bg-yellow-400 text-gray-900 shadow-yellow-400/50' 
-            : 'bg-gray-800 text-yellow-400 shadow-gray-800/50'
-        } shadow-lg hover:scale-110`}
-      >
-        {isDarkMode ? '☀️' : '🌙'}
-      </button>
+      {/* Top Right Button Group */}
+      <div className="fixed top-2 right-2 sm:top-4 sm:right-4 z-50 flex items-center gap-1 sm:gap-2">
+        {/* Dark Mode Toggle */}
+        <button
+          onClick={() => setIsDarkMode(!isDarkMode)}
+          className={`p-2 sm:p-3 rounded-full transition-all duration-300 ${
+            isDarkMode
+              ? 'bg-yellow-400 text-gray-900 shadow-yellow-400/50'
+              : 'bg-gray-800 text-yellow-400 shadow-gray-800/50'
+          } shadow-lg hover:scale-110 text-sm sm:text-base`}
+        >
+          {isDarkMode ? '☀️' : '🌙'}
+        </button>
 
-      {/* Leave Game Button */}
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={handleLeaveGame}
-        disabled={leavingGame}
-        className="fixed top-4 right-4 z-50 flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg"
-      >
-        {leavingGame ? (
-          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <LogOut className="w-4 h-4" />
-        )}
-        <span className="text-sm font-medium">
-          {leavingGame ? 'Выход...' : 'Покинуть'}
-        </span>
-      </motion.button>
+        {/* Leave Game Button - Mobile: Icon only, Desktop: Icon + Text */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={handleLeaveGame}
+          disabled={leavingGame}
+          className="flex items-center gap-1 sm:gap-2 bg-red-600 text-white px-2 py-2 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg"
+        >
+          {leavingGame ? (
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <LogOut className="w-4 h-4" />
+          )}
+          <span className="hidden sm:inline text-sm font-medium">
+            {leavingGame ? 'Выход...' : 'Покинуть'}
+          </span>
+        </motion.button>
+      </div>
 
       {/* HUD - Game Status */}
       <motion.div
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className={`fixed top-0 left-0 right-0 z-40 p-4 ${
-          isDarkMode 
-            ? 'bg-black/20 backdrop-blur-md border-b border-purple-500/30' 
+        className={`fixed top-0 left-0 right-0 z-40 p-3 sm:p-4 ${
+          isDarkMode
+            ? 'bg-black/20 backdrop-blur-md border-b border-purple-500/30'
             : 'bg-white/20 backdrop-blur-md border-b border-indigo-200/50'
         }`}
       >
-        <div className="container mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-6">
-            {/* Round Counter */}
-            <div className={`flex items-center space-x-2 px-4 py-2 rounded-full ${
-              isDarkMode 
-                ? 'bg-purple-500/20 border border-purple-400/30' 
-                : 'bg-indigo-100/80 border border-indigo-200'
-            }`}>
-              <Target className="w-4 h-4 text-indigo-600" />
-              <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                Раунд {Math.floor(moves.length / 3) + 1}
-              </span>
-            </div>
-
-            {/* Current Player */}
-            <div className={`flex items-center space-x-2 px-4 py-2 rounded-full ${
-              isDarkMode 
-                ? 'bg-pink-500/20 border border-pink-400/30' 
-                : 'bg-pink-100/80 border border-pink-200'
-            }`}>
-              <div className={`w-6 h-6 rounded-full bg-gradient-to-r ${getPlayerColor(currentPlayerNumber)} flex items-center justify-center text-white font-bold text-xs`}>
-                {currentPlayerNumber}
+        <div className="container mx-auto">
+          {/* Mobile Layout - Stack vertically */}
+          <div className="flex md:hidden flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              {/* Round Counter */}
+              <div className={`flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs ${
+                isDarkMode
+                  ? 'bg-purple-500/20 border border-purple-400/30'
+                  : 'bg-indigo-100/80 border border-indigo-200'
+              }`}>
+                <Target className="w-3 h-3 text-indigo-600" />
+                <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Р{Math.floor(moves.length / 3) + 1}
+                </span>
               </div>
-              <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                Вы: Игрок {currentPlayerNumber}
-              </span>
+
+              {/* Current Player */}
+              <div className={`flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs ${
+                isDarkMode
+                  ? 'bg-pink-500/20 border border-pink-400/30'
+                  : 'bg-pink-100/80 border border-pink-200'
+              }`}>
+                <div className={`w-5 h-5 rounded-full bg-gradient-to-r ${getPlayerColor(currentPlayerNumber)} flex items-center justify-center text-white font-bold text-xs`}>
+                  {currentPlayerNumber}
+                </div>
+                <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Вы
+                </span>
+              </div>
+
+              {/* Timer */}
+              {timeLeft > 0 && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className={`flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs ${
+                    timeLeft <= 5
+                      ? isDarkMode
+                        ? 'bg-red-500/30 border border-red-400/50'
+                        : 'bg-red-100 border border-red-300'
+                      : isDarkMode
+                        ? 'bg-orange-500/20 border border-orange-400/30'
+                        : 'bg-orange-100 border border-orange-200'
+                  }`}
+                >
+                  <Timer className={`w-3 h-3 ${timeLeft <= 5 ? 'text-red-500' : 'text-orange-500'}`} />
+                  <span className={`font-bold font-mono ${
+                    timeLeft <= 5
+                      ? 'text-red-600 animate-pulse'
+                      : isDarkMode ? 'text-orange-300' : 'text-orange-600'
+                  }`}>
+                    {timeLeft}с
+                  </span>
+                </motion.div>
+              )}
+
+              {/* Players Count */}
+              <div className={`flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs ${
+                isDarkMode
+                  ? 'bg-green-500/20 border border-green-400/30'
+                  : 'bg-green-100/80 border border-green-200'
+              }`}>
+                <Users className="w-3 h-3 text-green-600" />
+                <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {Object.keys(players).length}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Timer */}
-          {timeLeft > 0 && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-full ${
-                timeLeft <= 5 
-                  ? isDarkMode 
-                    ? 'bg-red-500/30 border border-red-400/50' 
-                    : 'bg-red-100 border border-red-300'
-                  : isDarkMode 
-                    ? 'bg-orange-500/20 border border-orange-400/30' 
-                    : 'bg-orange-100 border border-orange-200'
-              }`}
-            >
-              <Timer className={`w-4 h-4 ${timeLeft <= 5 ? 'text-red-500' : 'text-orange-500'}`} />
-              <span className={`font-bold font-mono ${
-                timeLeft <= 5 
-                  ? 'text-red-600 animate-pulse' 
-                  : isDarkMode ? 'text-orange-300' : 'text-orange-600'
+          {/* Desktop Layout - Original horizontal */}
+          <div className="hidden md:flex items-center justify-between">
+            <div className="flex items-center space-x-6">
+              {/* Round Counter */}
+              <div className={`flex items-center space-x-2 px-4 py-2 rounded-full ${
+                isDarkMode
+                  ? 'bg-purple-500/20 border border-purple-400/30'
+                  : 'bg-indigo-100/80 border border-indigo-200'
               }`}>
-                {timeLeft}с
-              </span>
-            </motion.div>
-          )}
+                <Target className="w-4 h-4 text-indigo-600" />
+                <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Раунд {Math.floor(moves.length / 3) + 1}
+                </span>
+              </div>
 
-          {/* Players Count */}
-          <div className={`flex items-center space-x-2 px-4 py-2 rounded-full ${
-            isDarkMode 
-              ? 'bg-green-500/20 border border-green-400/30' 
-              : 'bg-green-100/80 border border-green-200'
-          }`}>
-            <Users className="w-4 h-4 text-green-600" />
-            <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-              {Object.keys(players).length}
-            </span>
+              {/* Current Player */}
+              <div className={`flex items-center space-x-2 px-4 py-2 rounded-full ${
+                isDarkMode
+                  ? 'bg-pink-500/20 border border-pink-400/30'
+                  : 'bg-pink-100/80 border border-pink-200'
+              }`}>
+                <div className={`w-6 h-6 rounded-full bg-gradient-to-r ${getPlayerColor(currentPlayerNumber)} flex items-center justify-center text-white font-bold text-xs`}>
+                  {currentPlayerNumber}
+                </div>
+                <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Вы: Игрок {currentPlayerNumber}
+                </span>
+              </div>
+            </div>
+
+            {/* Timer */}
+            {timeLeft > 0 && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-full ${
+                  timeLeft <= 5
+                    ? isDarkMode
+                      ? 'bg-red-500/30 border border-red-400/50'
+                      : 'bg-red-100 border border-red-300'
+                    : isDarkMode
+                      ? 'bg-orange-500/20 border border-orange-400/30'
+                      : 'bg-orange-100 border border-orange-200'
+                }`}
+              >
+                <Timer className={`w-4 h-4 ${timeLeft <= 5 ? 'text-red-500' : 'text-orange-500'}`} />
+                <span className={`font-bold font-mono ${
+                  timeLeft <= 5
+                    ? 'text-red-600 animate-pulse'
+                    : isDarkMode ? 'text-orange-300' : 'text-orange-600'
+                }`}>
+                  {timeLeft}с
+                </span>
+              </motion.div>
+            )}
+
+            {/* Players Count */}
+            <div className={`flex items-center space-x-2 px-4 py-2 rounded-full ${
+              isDarkMode
+                ? 'bg-green-500/20 border border-green-400/30'
+                : 'bg-green-100/80 border border-green-200'
+            }`}>
+              <Users className="w-4 h-4 text-green-600" />
+              <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                {Object.keys(players).length}
+              </span>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -487,7 +562,7 @@ export default function FirebaseTruthOrDareGame({
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
               >
                 <SwipeCards
                   onSwipeLeft={() => handleChoice('truth')}
@@ -507,13 +582,13 @@ export default function FirebaseTruthOrDareGame({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
               >
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                  className={`rounded-2xl p-8 max-w-md w-full border backdrop-blur-md ${
+                  className={`rounded-2xl p-8 max-w-md w-full border ${
                     isDarkMode 
                       ? 'bg-gray-800/90 border-purple-500/30' 
                       : 'bg-white/90 border-indigo-200/50'
@@ -579,13 +654,13 @@ export default function FirebaseTruthOrDareGame({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
               >
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                  className={`rounded-2xl p-8 max-w-md w-full border backdrop-blur-md ${
+                  className={`rounded-2xl p-8 max-w-md w-full border ${
                     isDarkMode 
                       ? 'bg-gray-800/90 border-purple-500/30' 
                       : 'bg-white/90 border-indigo-200/50'
@@ -733,41 +808,6 @@ export default function FirebaseTruthOrDareGame({
                         {showPlayerNames ? player.name : `Игрок ${player.number}`}
                       </p>
                       
-                      {isCurrentPlayer && (
-                        <motion.div
-                          animate={{ opacity: [0.5, 1, 0.5] }}
-                          transition={{ duration: 1.5, repeat: Infinity }}
-                          className="text-xs text-indigo-400 font-bold mt-1"
-                        >
-                          ✨ Это вы
-                        </motion.div>
-                      )}
-                      
-                      {isAsker && (
-                        <motion.div
-                          animate={{ opacity: [0.5, 1, 0.5] }}
-                          transition={{ duration: 1.5, repeat: Infinity }}
-                          className="text-xs text-green-400 font-bold mt-1"
-                        >
-                          🎯 Спрашивает
-                        </motion.div>
-                      )}
-                      
-                      {isTarget && (
-                        <motion.div
-                          animate={{ opacity: [0.5, 1, 0.5] }}
-                          transition={{ duration: 1.5, repeat: Infinity }}
-                          className="text-xs text-orange-400 font-bold mt-1"
-                        >
-                          💭 Отвечает
-                        </motion.div>
-                      )}
-                      
-                      {player.userId === game.creatorId && (
-                        <div className="absolute -top-1 -right-1">
-                          <Crown className="w-4 h-4 text-yellow-500" />
-                        </div>
-                      )}
                     </div>
                   </motion.div>
                 );

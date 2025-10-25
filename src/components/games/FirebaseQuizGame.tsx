@@ -595,12 +595,6 @@ export default function FirebaseQuizGame({
                   <span className="font-medium text-gray-900">
                     {getPlayerDisplayName(player.number)}
                   </span>
-                  {player.userId === game.creatorId && (
-                    <Crown className="w-4 h-4 text-yellow-500" />
-                  )}
-                  {player.userId === currentPlayer.id && (
-                    <div className="text-xs text-indigo-600 font-medium">(Вы)</div>
-                  )}
                 </div>
                 <div className="flex items-center space-x-2">
                   <Trophy className="w-4 h-4 text-yellow-500" />
