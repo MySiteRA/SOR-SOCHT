@@ -299,32 +299,27 @@ export default function StudentProfilePage() {
   const { student, className } = studentData;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-slate-800 border-b border-slate-700 backdrop-blur-md bg-opacity-80 sticky top-0 z-40">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              {/* Session Indicator */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="w-3 h-3 bg-green-500 rounded-full shadow-lg animate-pulse"
-                title="Активный сеанс"
-              />
-              
-              <button
-                onClick={() => navigate('/student-dashboard')}
-                className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                <span>{t('common.back')}</span>
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Профиль</h1>
-                <p className="text-gray-600">{getStudentName()} • {t('home.class')} {className}</p>
-              </div>
+            <button
+              onClick={() => navigate('/student-dashboard')}
+              className="flex items-center space-x-2 text-slate-300 hover:text-white font-medium transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span>{t('common.back')}</span>
+            </button>
+            <div className="text-center">
+              <h1 className="text-xl font-bold text-white">Профиль</h1>
             </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-3 h-3 bg-emerald-500 rounded-full shadow-lg animate-pulse"
+              title="Активный сеанс"
+            />
           </div>
         </div>
       </header>
@@ -337,7 +332,7 @@ export default function StudentProfilePage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="bg-green-100 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 max-w-2xl mx-auto text-center"
+              className="bg-emerald-900 border border-emerald-700 text-emerald-100 px-4 py-3 rounded-lg mb-6 max-w-2xl mx-auto text-center shadow-lg"
             >
               <div className="flex items-center justify-center space-x-2">
                 <CheckCircle className="w-4 h-4" />
@@ -345,79 +340,73 @@ export default function StudentProfilePage() {
               </div>
             </motion.div>
           )}
-          
+
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 max-w-2xl mx-auto text-center"
+              className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg mb-6 max-w-2xl mx-auto text-center shadow-lg"
             >
               <div className="flex items-center justify-center space-x-2">
                 <AlertCircle className="w-4 h-4" />
                 <span>{error}</span>
               </div>
-              <button
-                onClick={() => setError(null)}
-                className="ml-2 text-red-500 hover:text-red-700"
-              >
-                ✕
-              </button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           {/* Tabs */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-lg mb-8 overflow-hidden"
+            className="bg-slate-800 rounded-xl shadow-2xl mb-8 overflow-hidden border border-slate-700"
           >
-            <div className="flex border-b border-gray-100">
+            <div className="flex flex-wrap border-b border-slate-700">
               <button
                 onClick={() => setActiveTab('settings')}
-                className={`flex items-center space-x-2 px-6 py-4 font-medium transition-colors flex-1 ${
+                className={`flex items-center space-x-2 px-6 py-4 font-medium transition-all ${
                   activeTab === 'settings'
-                    ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50'
-                    : 'text-gray-600 hover:text-indigo-600 hover:bg-gray-50'
+                    ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-700/50'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/30'
                 }`}
               >
                 <User className="w-4 h-4" />
-                <span>Настройки профиля</span>
+                <span>Профиль</span>
               </button>
-              
+
               <button
                 onClick={() => setActiveTab('security')}
-                className={`flex items-center space-x-2 px-6 py-4 font-medium transition-colors flex-1 ${
+                className={`flex items-center space-x-2 px-6 py-4 font-medium transition-all ${
                   activeTab === 'security'
-                    ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50'
-                    : 'text-gray-600 hover:text-indigo-600 hover:bg-gray-50'
+                    ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-700/50'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/30'
                 }`}
               >
                 <Shield className="w-4 h-4" />
                 <span>Безопасность</span>
               </button>
-              
+
               <button
                 onClick={() => navigate('/student-chat')}
-                className="flex items-center space-x-2 px-6 py-4 font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors"
+                className="flex items-center space-x-2 px-6 py-4 font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/30 transition-all"
               >
                 <MessageCircle className="w-4 h-4" />
                 <span>Чат класса</span>
               </button>
-              
+
               <button
                 onClick={() => navigate('/student-games')}
-                className="flex items-center space-x-2 px-6 py-4 font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors"
+                className="flex items-center space-x-2 px-6 py-4 font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/30 transition-all"
               >
                 <Gamepad2 className="w-4 h-4" />
-                <span>Игры с классом</span>
+                <span>Игры</span>
               </button>
             </div>
 
             {/* Tab Content */}
-            <div className="p-6">
+            <div className="p-8">
               <AnimatePresence mode="wait">
                 {/* Settings Tab */}
                 {activeTab === 'settings' && (
@@ -430,10 +419,13 @@ export default function StudentProfilePage() {
                   >
                     {/* Avatar Section */}
                     <div className="text-center">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-6">Аватар профиля</h3>
-                      
+                      <h3 className="text-xl font-bold text-white mb-8">Аватар профиля</h3>
+
                       <div className="relative inline-block">
-                        <div className="w-32 h-32 rounded-full overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          className="w-40 h-40 rounded-2xl overflow-hidden bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center mx-auto mb-6 shadow-2xl"
+                        >
                           {avatarPreview ? (
                             <img
                               src={avatarPreview}
@@ -447,21 +439,25 @@ export default function StudentProfilePage() {
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <span className="text-white font-bold text-3xl">
+                            <span className="text-white font-bold text-5xl">
                               {getStudentInitials()}
                             </span>
                           )}
-                        </div>
-                        
+                        </motion.div>
+
                         {avatarLoading && (
-                          <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
+                          <div className="absolute inset-0 bg-black bg-opacity-50 rounded-2xl flex items-center justify-center">
                             <Loader2 className="w-8 h-8 text-white animate-spin" />
                           </div>
                         )}
                       </div>
 
-                      <div className="space-y-4">
-                        <label className="inline-block">
+                      <p className="text-slate-300 text-sm mt-4 mb-6">
+                        {getStudentName()} • Класс {className}
+                      </p>
+
+                      <div className="flex justify-center gap-4">
+                        <label className="cursor-pointer">
                           <input
                             type="file"
                             accept="image/*"
@@ -470,19 +466,19 @@ export default function StudentProfilePage() {
                             disabled={avatarLoading}
                           />
                           <motion.div
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            className="flex items-center space-x-2 bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 transition-colors cursor-pointer shadow-lg"
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="flex items-center space-x-2 bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-3 rounded-lg transition-colors cursor-pointer shadow-lg font-medium"
                           >
                             <Upload className="w-4 h-4" />
-                            <span>Загрузить аватар</span>
+                            <span>Изменить</span>
                           </motion.div>
                         </label>
-                        
+
                         {(avatarPreview || localProfile?.avatar_url) && (
                           <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
                             onClick={async () => {
                               if (!studentData) return;
                               try {
@@ -499,39 +495,39 @@ export default function StudentProfilePage() {
                               }
                             }}
                             disabled={avatarLoading}
-                            className="inline-flex items-center space-x-2 bg-red-600 text-white px-6 py-3 rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
+                            className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg font-medium"
                           >
                             <Trash2 className="w-4 h-4" />
-                            <span>Удалить аватар</span>
+                            <span>Удалить</span>
                           </motion.button>
                         )}
-                        
-                        <p className="text-sm text-gray-500">
-                          Поддерживаются форматы: JPG, PNG, GIF. Максимальный размер: 5MB
-                        </p>
                       </div>
+
+                      <p className="text-xs text-slate-400 mt-4">
+                        JPG, PNG, GIF • Макс 5MB
+                      </p>
                     </div>
 
                     {/* Profile Info */}
-                    <div className="bg-gray-50 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Информация о профиле</h4>
-                      <div className="space-y-3">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Имя:</span>
-                          <span className="font-medium text-gray-900">{student.name}</span>
+                    <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
+                      <h4 className="text-lg font-bold text-white mb-6">Информация о профиле</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-slate-800/50 rounded-lg p-4">
+                          <p className="text-slate-400 text-sm mb-1">Имя</p>
+                          <p className="font-medium text-white">{student.name}</p>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Класс:</span>
-                          <span className="font-medium text-gray-900">{className}</span>
+                        <div className="bg-slate-800/50 rounded-lg p-4">
+                          <p className="text-slate-400 text-sm mb-1">Класс</p>
+                          <p className="font-medium text-white">{className}</p>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Дата регистрации:</span>
-                          <span className="font-medium text-gray-900">
-                            {student.registration_date 
-                              ? formatDateTime(student.registration_date)
+                        <div className="bg-slate-800/50 rounded-lg p-4">
+                          <p className="text-slate-400 text-sm mb-1">Регистрация</p>
+                          <p className="font-medium text-white text-sm">
+                            {student.registration_date
+                              ? formatDateTime(student.registration_date).split(',')[0]
                               : 'Не указана'
                             }
-                          </span>
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -548,34 +544,32 @@ export default function StudentProfilePage() {
                     className="space-y-8"
                   >
                     {/* Current Session Info */}
-                    <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Текущая сессия</h4>
+                    <div className="bg-cyan-900/30 rounded-lg p-6 border border-cyan-700/50">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <Clock className="w-5 h-5 text-cyan-400" />
+                        <h4 className="text-lg font-bold text-white">Текущая сессия</h4>
+                      </div>
                       {student.last_login ? (
-                        <div className="space-y-3">
-                          <div className="flex items-center space-x-3">
-                            <Clock className="w-5 h-5 text-blue-600" />
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                Последний вход: {formatDateTime(student.last_login)}
-                              </p>
-                              <p className="text-sm text-gray-600">
-                                Устройство: {formatDeviceInfo(student.device_info)}
-                              </p>
-                            </div>
-                          </div>
+                        <div className="space-y-2">
+                          <p className="text-slate-300">
+                            <span className="text-slate-400">Последний вход:</span> {formatDateTime(student.last_login)}
+                          </p>
+                          <p className="text-slate-300">
+                            <span className="text-slate-400">Устройство:</span> {formatDeviceInfo(student.device_info)}
+                          </p>
                         </div>
                       ) : (
-                        <p className="text-gray-600">Информация о сессии недоступна</p>
+                        <p className="text-slate-400">Информация о сессии недоступна</p>
                       )}
                     </div>
 
                     {/* Login History */}
-                    <div className="bg-gray-50 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">История входов</h4>
+                    <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
+                      <h4 className="text-lg font-bold text-white mb-6">История входов</h4>
                       {localLoginSessions.length === 0 ? (
-                        <div className="text-center py-6">
-                          <Monitor className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                          <p className="text-gray-600">История входов пуста</p>
+                        <div className="text-center py-8">
+                          <Monitor className="w-12 h-12 text-slate-500 mx-auto mb-3" />
+                          <p className="text-slate-400">История входов пуста</p>
                         </div>
                       ) : (
                         <div className="space-y-3">
@@ -585,20 +579,20 @@ export default function StudentProfilePage() {
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: index * 0.05 }}
-                              className="flex items-center space-x-3 p-3 bg-white rounded-lg shadow-sm border border-gray-100"
+                              className="flex items-center space-x-4 p-4 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-slate-600 transition-colors"
                             >
-                              <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+                              <div className="w-10 h-10 bg-cyan-900/50 rounded-lg flex items-center justify-center">
                                 {formatDeviceInfo(session.device_info).includes('Мобильное') ? (
-                                  <Smartphone className="w-4 h-4 text-indigo-600" />
+                                  <Smartphone className="w-5 h-5 text-cyan-400" />
                                 ) : (
-                                  <Monitor className="w-4 h-4 text-indigo-600" />
+                                  <Monitor className="w-5 h-5 text-cyan-400" />
                                 )}
                               </div>
                               <div className="flex-1">
-                                <p className="font-medium text-gray-900">
+                                <p className="font-medium text-white text-sm">
                                   {formatDateTime(session.login_time)}
                                 </p>
-                                <p className="text-sm text-gray-600">
+                                <p className="text-xs text-slate-400">
                                   {formatDeviceInfo(session.device_info)}
                                 </p>
                               </div>
@@ -607,29 +601,29 @@ export default function StudentProfilePage() {
                         </div>
                       )}
                     </div>
-                            
+
                     {/* Password Management */}
-                    <div className="bg-gray-50 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Управление паролем</h4>
-                      
+                    <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
+                      <h4 className="text-lg font-bold text-white mb-6">Управление паролем</h4>
+
                       {!showPasswordForm ? (
                         <div className="space-y-4">
-                          <p className="text-gray-600 mb-4">
-                            Вы можете изменить свой пароль или сбросить его для получения нового ключа доступа.
+                          <p className="text-slate-300 mb-6">
+                            Изменяйте пароль для повышения безопасности или сбросьте его для получения новой ссылки доступа.
                           </p>
-                          
-                          <div className="flex space-x-3">
+
+                          <div className="flex flex-col sm:flex-row gap-3">
                             <button
                               onClick={() => setShowPasswordForm(true)}
-                              className="flex-1 bg-indigo-600 text-white px-4 py-3 rounded-xl hover:bg-indigo-700 transition-colors font-medium"
+                              className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-3 rounded-lg transition-colors font-medium"
                             >
                               Изменить пароль
                             </button>
-                            
+
                             <button
                               onClick={handlePasswordReset}
                               disabled={passwordLoading}
-                              className="w-full bg-red-600 text-white px-4 py-3 rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                              className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                             >
                               {passwordLoading ? (
                                 <div className="flex items-center justify-center space-x-2">
@@ -643,9 +637,9 @@ export default function StudentProfilePage() {
                           </div>
                         </div>
                       ) : (
-                        <form onSubmit={handlePasswordChange} className="space-y-4">
+                        <form onSubmit={handlePasswordChange} className="space-y-5">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-medium text-slate-300 mb-2">
                               Старый пароль
                             </label>
                             <div className="relative">
@@ -653,28 +647,25 @@ export default function StudentProfilePage() {
                                 type={showOldPassword ? 'text' : 'password'}
                                 value={oldPassword}
                                 onChange={(e) => setOldPassword(e.target.value)}
-                                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-slate-500"
                                 required
                               />
                               <button
                                 type="button"
                                 onClick={() => setShowOldPassword(!showOldPassword)}
-                                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-slate-700 rounded text-slate-400"
                               >
                                 {showOldPassword ? (
-                                  <EyeOff className="w-4 h-4 text-gray-400" />
+                                  <EyeOff className="w-4 h-4" />
                                 ) : (
-                                  <Eye className="w-4 h-4 text-gray-400" />
+                                  <Eye className="w-4 h-4" />
                                 )}
                               </button>
                             </div>
                           </div>
 
-
-
-
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-medium text-slate-300 mb-2">
                               Новый пароль
                             </label>
                             <div className="relative">
@@ -682,55 +673,55 @@ export default function StudentProfilePage() {
                                 type={showNewPassword ? 'text' : 'password'}
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
-                                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-slate-500"
                                 required
                                 minLength={4}
                               />
                               <button
                                 type="button"
                                 onClick={() => setShowNewPassword(!showNewPassword)}
-                                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-slate-700 rounded text-slate-400"
                               >
                                 {showNewPassword ? (
-                                  <EyeOff className="w-4 h-4 text-gray-400" />
+                                  <EyeOff className="w-4 h-4" />
                                 ) : (
-                                  <Eye className="w-4 h-4 text-gray-400" />
+                                  <Eye className="w-4 h-4" />
                                 )}
                               </button>
                             </div>
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Подтвердите новый пароль
+                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                              Подтверждение пароля
                             </label>
                             <div className="relative">
                               <input
                                 type={showConfirmPassword ? 'text' : 'password'}
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
-                                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-slate-500"
                                 required
                               />
                               <button
                                 type="button"
                                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-slate-700 rounded text-slate-400"
                               >
                                 {showConfirmPassword ? (
-                                  <EyeOff className="w-4 h-4 text-gray-400" />
+                                  <EyeOff className="w-4 h-4" />
                                 ) : (
-                                  <Eye className="w-4 h-4 text-gray-400" />
+                                  <Eye className="w-4 h-4" />
                                 )}
                               </button>
                             </div>
                           </div>
 
-                          <div className="flex space-x-3">
+                          <div className="flex flex-col sm:flex-row gap-3 pt-2">
                             <button
                               type="submit"
                               disabled={passwordLoading || !oldPassword || !newPassword || !confirmPassword}
-                              className="flex-1 bg-indigo-600 text-white px-4 py-3 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                              className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                             >
                               {passwordLoading ? (
                                 <div className="flex items-center justify-center space-x-2">
@@ -738,10 +729,10 @@ export default function StudentProfilePage() {
                                   <span>Изменение...</span>
                                 </div>
                               ) : (
-                                'Изменить пароль'
+                                'Сохранить'
                               )}
                             </button>
-                            
+
                             <button
                               type="button"
                               onClick={() => {
@@ -751,7 +742,7 @@ export default function StudentProfilePage() {
                                 setConfirmPassword('');
                                 setError(null);
                               }}
-                              className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors font-medium"
+                              className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors font-medium"
                             >
                               Отмена
                             </button>
