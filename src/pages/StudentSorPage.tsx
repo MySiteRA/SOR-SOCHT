@@ -7,8 +7,12 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import MaterialCard from '../components/MaterialCard';
 import MaterialModal from '../components/MaterialModal';
 import StudentAvatar from '../components/StudentAvatar';
+import SubjectCard from '../components/SubjectCard';
+import CurrentLessonBanner from '../components/CurrentLessonBanner';
 import { usePreloadedData } from '../hooks/usePreloadedData';
 import { checkStudentKeyValidity } from '../lib/api';
+import { useRealtimeLessonTimer } from '../hooks/useRealtimeLessonTimer';
+import { supabase } from '../lib/supabase';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +35,19 @@ interface MaterialMetadata {
   subject?: Subject;
 }
 
+interface ScheduleItem {
+  id: string;
+  class_id: string;
+  day_of_week: string;
+  lesson_number: number;
+  subject: string;
+  teacher: string;
+  room: string;
+  start_time: string;
+  end_time: string;
+  created_at: string;
+}
+
 export default function StudentSorPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -39,10 +56,17 @@ export default function StudentSorPage() {
   const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+
   // Используем предзагруженные данные
   const { data: preloadedData, loading } = usePreloadedData();
-  
+
+  // Используем хук для реального времени урока
+  const currentLesson = useRealtimeLessonTimer({
+    classId: studentData?.student.class_id || '',
+    schedule
+  });
+
   // Получаем предметы и материалы из предзагруженных данных
   const subjects = preloadedData?.subjects || [];
   const materials = preloadedData?.sorMaterials || [];
@@ -52,9 +76,12 @@ export default function StudentSorPage() {
     if (saved) {
       const data = JSON.parse(saved);
       setStudentData(data);
-      
+
       // Проверяем валидность ключа студента
       validateStudentKey(data.student.id);
+
+      // Загружаем расписание
+      loadSchedule(data.student.class_id);
     } else {
       navigate('/', { replace: true });
       return;
@@ -64,7 +91,7 @@ export default function StudentSorPage() {
   const validateStudentKey = async (studentId: string) => {
     try {
       const isValid = await checkStudentKeyValidity(studentId);
-      
+
       if (!isValid) {
         // Ключ больше не валиден, принудительно разлогиниваем
         localStorage.removeItem('studentDashboardData');
@@ -76,6 +103,22 @@ export default function StudentSorPage() {
     } catch (error) {
       console.error('Error validating student key:', error);
       // В случае ошибки проверки, не разлогиниваем
+    }
+  };
+
+  const loadSchedule = async (classId: string) => {
+    try {
+      const { data, error: scheduleError } = await supabase
+        .from('schedule')
+        .select('*')
+        .eq('class_id', classId)
+        .order('day_of_week')
+        .order('lesson_number');
+
+      if (scheduleError) throw scheduleError;
+      setSchedule(data || []);
+    } catch (error) {
+      console.error('Error loading schedule:', error);
     }
   };
 
@@ -134,52 +177,52 @@ export default function StudentSorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="sticky top-0 z-40 backdrop-blur-xl bg-white/70 border-b border-gray-200/50 shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <button
+              <motion.button
                 onClick={() => navigate('/student-dashboard')}
-                className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium"
+                whileHover={{ x: -4 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 font-medium transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
                 <span>{t('common.back')}</span>
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
+              </motion.button>
+              <div className="hidden sm:block">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
                   {t('dashboard.sor')}
                 </h1>
-                <p className="text-gray-600">
+                <p className="text-sm text-gray-600">
                   {t('dashboard.sorDesc')}
                 </p>
               </div>
             </div>
-            
-            <div className="flex items-center space-x-4">
-              {/* Session Indicator */}
+
+            <div className="flex items-center space-x-3">
               <motion.div
                 initial={{ opacity: 0, scale: 0 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="w-3 h-3 bg-green-500 rounded-full shadow-lg animate-pulse"
-                title="Активный сеанс"
+                className="hidden sm:block w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/50 animate-pulse"
               />
-              
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex items-center justify-center w-10 h-10 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md"
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.92 }}
+                    className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-xl hover:border-gray-300 transition-all duration-200 shadow-md hover:shadow-lg"
                   >
-                    <MoreVertical className="w-5 h-5 text-gray-600" />
+                    <MoreVertical className="w-5 h-5 text-gray-700" />
                   </motion.button>
                 </DropdownMenuTrigger>
-                
-                <DropdownMenuContent 
-                  align="end" 
-                  className="w-48 mt-2"
+
+                <DropdownMenuContent
+                  align="end"
+                  className="w-52 mt-2"
                   asChild
                 >
                   <motion.div
@@ -189,52 +232,52 @@ export default function StudentSorPage() {
                     transition={{ duration: 0.15, ease: "easeOut" }}
                   >
                     <div>
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={handleProfileClick}
                         className="cursor-pointer"
                       >
-                        <UserIcon className="w-4 h-4 mr-3 text-indigo-500" />
+                        <UserIcon className="w-4 h-4 mr-3 text-blue-500" />
                         <span className="text-gray-700">Профиль</span>
                       </DropdownMenuItem>
-                      
-                      <DropdownMenuItem 
+
+                      <DropdownMenuItem
                         onClick={handleScheduleClick}
                         className="cursor-pointer"
                       >
-                        <Calendar className="w-4 h-4 mr-3 text-blue-500" />
+                        <Calendar className="w-4 h-4 mr-3 text-amber-500" />
                         <span className="text-gray-700">Расписание</span>
                       </DropdownMenuItem>
-                      
-                      <DropdownMenuItem 
+
+                      <DropdownMenuItem
                         onClick={handleChatClick}
                         className="cursor-pointer"
                       >
-                        <MessageCircle className="w-4 h-4 mr-3 text-green-500" />
+                        <MessageCircle className="w-4 h-4 mr-3 text-emerald-500" />
                         <span className="text-gray-700">Чат класса</span>
                       </DropdownMenuItem>
-                      
-                      <DropdownMenuItem 
+
+                      <DropdownMenuItem
                         onClick={handleGamesClick}
                         className="cursor-pointer"
                       >
-                        <Gamepad2 className="w-4 h-4 mr-3 text-purple-500" />
+                        <Gamepad2 className="w-4 h-4 mr-3 text-rose-500" />
                         <span className="text-gray-700">Игры с классом</span>
                       </DropdownMenuItem>
-                      
-                      <DropdownMenuItem 
+
+                      <DropdownMenuItem
                         onClick={handleForgetSession}
                         className="cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4 mr-3 text-orange-500" />
-                        <span className="text-gray-700">Забыть сеанс (полный выход)</span>
+                        <span className="text-gray-700">Забыть сеанс</span>
                       </DropdownMenuItem>
-                      
-                      <DropdownMenuItem 
+
+                      <DropdownMenuItem
                         onClick={handleLogout}
                         className="cursor-pointer"
                       >
                         <LogOut className="w-4 h-4 mr-3 text-red-500" />
-                        <span className="text-gray-700">Выйти (сеанс сохранится)</span>
+                        <span className="text-gray-700">Выйти</span>
                       </DropdownMenuItem>
                     </div>
                   </motion.div>
@@ -245,13 +288,13 @@ export default function StudentSorPage() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-12">
         {/* Error Message */}
         {error && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6"
+            className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 backdrop-blur-sm"
           >
             {error}
             <button
@@ -265,57 +308,103 @@ export default function StudentSorPage() {
 
         {/* Loading */}
         {loading && !preloadedData && <LoadingSpinner />}
-        
-        {/* Показываем индикатор загрузки только если нет предзагруженных данных */}
+
+        {/* Update Indicator */}
         {loading && preloadedData && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center py-4"
+            className="text-center py-4 mb-6"
           >
-            <div className="inline-flex items-center space-x-2 text-gray-600">
-              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-sm">Обновление данных...</span>
+            <div className="inline-flex items-center space-x-2 text-gray-600 bg-white/50 backdrop-blur px-4 py-2 rounded-full border border-gray-200">
+              <div className="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
+              <span className="text-sm font-medium">Обновление данных...</span>
             </div>
           </motion.div>
+        )}
+
+        {/* Current Lesson Banner */}
+        {schedule.length > 0 && currentLesson.current && (
+          <CurrentLessonBanner
+            currentLesson={currentLesson.current}
+            timeLeft={currentLesson.timeLeft}
+            isFinished={currentLesson.isFinished}
+            isBreak={currentLesson.isBreak}
+            timeUntilNext={currentLesson.timeUntilNext}
+          />
         )}
 
         {/* Subjects List */}
         {(subjects.length > 0 || !loading) && (
           <motion.div
-            initial={{ opacity: 0, x: 100 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
           >
             {subjects.length === 0 ? (
-              <div className="col-span-full text-center py-12">
-                <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-medium text-gray-600 mb-2">Нет предметов</h3>
-                <p className="text-gray-500">Предметы для этого класса пока не добавлены</p>
-              </div>
+              <motion.div
+                className="text-center py-20"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                <div className="bg-white/60 backdrop-blur rounded-2xl p-12 border border-gray-200 shadow-lg">
+                  <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-2xl font-semibold text-gray-900 mb-2">Нет предметов</h3>
+                  <p className="text-gray-600">Предметы для этого класса пока не добавлены</p>
+                </div>
+              </motion.div>
             ) : (
-              subjects.map((subject, index) => (
-                <motion.div
-                  key={subject.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  whileHover={{ scale: 1.01, y: -2 }}
-                  whileTap={{ scale: 0.99 }}
-                  onClick={() => loadSubjectMaterials(subject)}
-                  className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-100 p-4"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-green-100 p-2 rounded-lg">
-                      <BookOpen className="w-5 h-5 text-green-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-medium text-gray-900">{subject.name}</h3>
+              <div className="space-y-6">
+                {currentLesson.current && (
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Текущий урок</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {subjects
+                        .filter(s => s.name === currentLesson.current?.subject)
+                        .map((subject, index) => (
+                          <SubjectCard
+                            key={subject.id}
+                            subject={subject}
+                            onClick={() => loadSubjectMaterials(subject)}
+                            index={index}
+                          />
+                        ))}
                     </div>
                   </div>
-                </motion.div>
-              ))
+                )}
+
+                {subjects.filter(s => !currentLesson.current || s.name !== currentLesson.current.subject).length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Остальные предметы</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {subjects
+                        .filter(s => !currentLesson.current || s.name !== currentLesson.current.subject)
+                        .map((subject, index) => (
+                          <SubjectCard
+                            key={subject.id}
+                            subject={subject}
+                            onClick={() => loadSubjectMaterials(subject)}
+                            index={index}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {!currentLesson.current && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {subjects.map((subject, index) => (
+                      <SubjectCard
+                        key={subject.id}
+                        subject={subject}
+                        onClick={() => loadSubjectMaterials(subject)}
+                        index={index}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </motion.div>
         )}

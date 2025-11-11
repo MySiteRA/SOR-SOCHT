@@ -319,29 +319,106 @@ export default function FirebaseQuizGame({
 
   if (!currentQuestion && !moves.some(m => m.type === 'quiz_finished')) {
     return (
-      <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-8 text-center">
-        <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-gray-600 mb-4">
-          {isQuizMaster ? 'Подготовка вопросов...' : 'Ожидание начала викторины...'}
-        </p>
-        <p className="text-sm text-gray-500">
-          Ваш номер: <span className="font-bold text-indigo-600">Игрок {currentPlayerNumber}</span>
-        </p>
-        <p className="text-sm text-gray-500 mt-2">
-          Уровень сложности: <span className="font-bold text-indigo-600">
-            {difficulty === 'easy' ? 'Легкий' : difficulty === 'medium' ? 'Средний' : 'Сложный'}
-          </span>
-        </p>
-        {isQuizMaster && (
-          <button
-            onClick={startNextQuestion}
-            className="mt-4 bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50"
+      >
+        <div className="w-full max-w-md">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+            className="text-7xl mb-8 text-center"
           >
-            <Play className="w-4 h-4 inline mr-2" />
-            Начать викторину
-          </button>
-        )}
-      </div>
+            🧠
+          </motion.div>
+
+          <div className="bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl border border-indigo-100 p-8 text-center space-y-6">
+            <div>
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+                {isQuizMaster ? 'Подготовка викторины' : 'Комната ожидания'}
+              </h2>
+              <p className="text-gray-600">
+                {isQuizMaster ? 'Готовьтесь начать вопросы' : 'Ожидаем начала игры'}
+              </p>
+            </div>
+
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="inline-block"
+            >
+              <div className="w-20 h-20 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto" />
+            </motion.div>
+
+            <div className="space-y-4 pt-6">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+                className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200"
+              >
+                <span className="text-gray-700 font-medium">Ваш номер</span>
+                <span className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold rounded-lg">
+                  Игрок {currentPlayerNumber}
+                </span>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl border border-purple-200"
+              >
+                <span className="text-gray-700 font-medium">Уровень сложности</span>
+                <span className={`px-4 py-2 font-bold rounded-lg text-white ${
+                  difficulty === 'easy'
+                    ? 'bg-green-500'
+                    : difficulty === 'medium'
+                      ? 'bg-amber-500'
+                      : 'bg-red-500'
+                }`}>
+                  {difficulty === 'easy' ? 'Легкий' : difficulty === 'medium' ? 'Средний' : 'Сложный'}
+                </span>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 }}
+                className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-200"
+              >
+                <span className="text-gray-700 font-medium">Участников</span>
+                <span className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-lg">
+                  {playersArray.length}
+                </span>
+              </motion.div>
+            </div>
+
+            {isQuizMaster && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={startNextQuestion}
+                className="w-full mt-8 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+              >
+                <Play className="w-5 h-5" />
+                <span>Начать викторину</span>
+              </motion.button>
+            )}
+          </div>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="text-center text-gray-600 text-sm mt-6"
+          >
+            {isQuizMaster ? 'Вы можете начать игру в любой момент' : 'Ожидайте ведущего'}
+          </motion.p>
+        </div>
+      </motion.div>
     );
   }
 
