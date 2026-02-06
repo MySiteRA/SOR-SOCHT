@@ -374,7 +374,7 @@ export default function StudentSchedulePage() {
           </motion.div>
         )}
 
-        {/* Weekly Schedule */}
+        {/* Weekly Schedule 3D */}
         {schedule.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -389,79 +389,128 @@ export default function StudentSchedulePage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm"
+            className="space-y-6"
           >
-            <div className="bg-gradient-to-r from-blue-50 to-cyan-50 px-6 py-4 border-b border-slate-200">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-slate-900">Расписание на неделю</h2>
-
-                {scheduleFileUrl && (
-                  <motion.a
-                    href={scheduleFileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium"
-                  >
-                    <Calendar className="w-4 h-4" />
-                    <span>Скачать</span>
-                  </motion.a>
-                )}
-              </div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">Расписание на неделю</h2>
+              {scheduleFileUrl && (
+                <motion.a
+                  href={scheduleFileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors text-sm font-medium"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>Скачать</span>
+                </motion.a>
+              )}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-slate-900 border-r border-slate-200 min-w-[60px] text-sm">
-                      №
-                    </th>
-                    {days.map(day => (
-                      <th key={day} className="px-4 py-3 text-left font-semibold text-slate-900 border-r border-slate-200 min-w-[180px] text-sm">
-                        {day}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {Array.from({ length: 10 }, (_, i) => i + 1).map(lessonNumber => (
-                    <tr key={lessonNumber} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-4 py-4 font-semibold text-slate-700 border-r border-slate-200 text-center text-sm bg-slate-50/30">
-                        {lessonNumber}
-                      </td>
-                      {days.map(day => {
-                        const daySchedule = getScheduleForDay(day);
-                        const lesson = daySchedule.find(item => item.lesson_number === lessonNumber);
+            {/* Days Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {days.map((day, dayIndex) => {
+                const daySchedule = getScheduleForDay(day);
+                const today = new Date();
+                const dayNames = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+                const currentDayName = dayNames[today.getDay()];
+                const isToday = day === currentDayName;
 
-                        return (
-                          <td key={`${day}-${lessonNumber}`} className="px-4 py-4 border-r border-slate-200">
-                            {lesson ? (
-                              <div className="space-y-1">
-                                <div className="font-semibold text-slate-900 text-sm">
+                return (
+                  <motion.div
+                    key={day}
+                    initial={{ opacity: 0, y: 20, rotateX: -10 }}
+                    animate={{ opacity: 1, y: 0, rotateX: 0 }}
+                    transition={{ delay: dayIndex * 0.05 }}
+                    whileHover={{ y: -8, rotateX: 5 }}
+                    className={`rounded-xl border-2 overflow-hidden transition-all duration-300 ${
+                      isToday
+                        ? 'border-emerald-400 shadow-2xl shadow-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-emerald-50'
+                        : 'border-slate-200 shadow-lg hover:shadow-xl bg-white'
+                    }`}
+                    style={{
+                      transformStyle: 'preserve-3d',
+                      perspective: '1000px'
+                    }}
+                  >
+                    {/* Header */}
+                    <div className={`px-4 py-4 ${
+                      isToday
+                        ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                        : 'bg-gradient-to-r from-blue-500 to-blue-600'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-white">{day}</h3>
+                        {isToday && (
+                          <motion.div
+                            animate={{ scale: [1, 1.2, 1] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                            className="w-3 h-3 bg-white rounded-full shadow-lg"
+                          />
+                        )}
+                      </div>
+                      {isToday && (
+                        <p className="text-xs text-emerald-100 mt-1 font-semibold">Сегодня</p>
+                      )}
+                    </div>
+
+                    {/* Lessons */}
+                    <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
+                      {daySchedule.length === 0 ? (
+                        <div className="text-center py-8 text-slate-400">
+                          <p className="text-sm">Нет уроков</p>
+                        </div>
+                      ) : (
+                        daySchedule.map((lesson, idx) => (
+                          <motion.div
+                            key={lesson.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.1 }}
+                            className={`rounded-lg p-3 backdrop-blur-sm border transition-all ${
+                              isToday
+                                ? 'bg-emerald-100/50 border-emerald-300 hover:bg-emerald-100'
+                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <div className="font-bold text-sm text-slate-900 line-clamp-2">
                                   {lesson.subject}
                                 </div>
-                                <div className="text-xs text-slate-700">
-                                  {lesson.teacher}
-                                </div>
-                                <div className="text-xs text-slate-600">
-                                  {lesson.room}
-                                </div>
-                                <div className="text-xs text-blue-600 font-medium mt-1">
-                                  {formatTime(lesson.start_time)} - {formatTime(lesson.end_time)}
+                                <div className="text-xs text-slate-600 mt-1">
+                                  Урок {lesson.lesson_number}
                                 </div>
                               </div>
-                            ) : (
-                              <div className="text-slate-400 text-center text-sm">—</div>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                              <span className={`text-xs font-bold px-2 py-1 rounded whitespace-nowrap ml-2 ${
+                                isToday
+                                  ? 'bg-emerald-200 text-emerald-800'
+                                  : 'bg-blue-100 text-blue-800'
+                              }`}>
+                                {formatTime(lesson.start_time)}
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-1 text-xs text-slate-600">
+                              <div className="truncate">👨‍🏫 {lesson.teacher}</div>
+                              <div className="truncate">📍 {lesson.room}</div>
+                            </div>
+                          </motion.div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className={`px-4 py-2 border-t text-center text-xs font-medium ${
+                      isToday
+                        ? 'bg-emerald-50/50 text-emerald-700 border-emerald-200'
+                        : 'bg-slate-50/50 text-slate-600 border-slate-200'
+                    }`}>
+                      {daySchedule.length} уроков
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           </motion.div>
         )}
